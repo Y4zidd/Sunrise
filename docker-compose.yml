@@ -6,9 +6,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "443:443"
+      - "80:80"
     volumes:
       - ./Data:/app/Data
       - ./Sunrise.Server/appsettings.Production.json:/app/appsettings.Production.json
+      - ./certificate.pfx:/app/certificate.pfx
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=https://+:443;http://+:5147
