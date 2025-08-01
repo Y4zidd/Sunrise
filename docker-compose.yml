@@ -5,8 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "443:443"
-      - "80:80"
+      - "5147:443"
+      - "5148:80"
     volumes:
       - ./Data:/app/Data
       - ./Sunrise.Server/appsettings.Production.json:/app/appsettings.Production.json
