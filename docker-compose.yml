@@ -13,7 +13,7 @@ services:
       - ./certificate.pfx:/app/certificate.pfx
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=https://+:443;http://+:5147
+      - ASPNETCORE_URLS=https://+:443;http://+:80
       - ASPNETCORE_Kestrel__Certificates__Default__Password=password
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificate.pfx
     restart: unless-stopped
