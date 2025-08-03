@@ -71,3 +71,8 @@ volumes:
   mysql:
   redis:
   postgres_data:
+
+networks:
+  default:
+    external: true
+    name: sunrise-network
