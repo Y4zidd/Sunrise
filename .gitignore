@@ -120,7 +120,7 @@ Data/Files/Banners/*
 Data/Files/Replays/*
 Data/Files/Screenshot/*
 Data/Files/SeasonalBackgrounds/*
-Data/Backups/*
+# Data/Backups/*  # Commented out in backup branch to make backups visible
 backup_mysql*
 
 # Ignore test database files
