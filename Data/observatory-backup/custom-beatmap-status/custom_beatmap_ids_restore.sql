@@ -1,5 +1,5 @@
 -- Restore custom beatmap status dari backup
--- Backup dibuat: 2025-08-11 03:48:17
+-- Backup dibuat: 2025-08-11 03:51:20
 -- Total beatmap: 409
 
 INSERT INTO custom_beatmap_status (beatmap_set_id, beatmap_hash, status) VALUES
