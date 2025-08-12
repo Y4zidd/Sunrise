@@ -137,3 +137,6 @@ grafana
 
 # Ignore appsettings.Production.json
 appsettings.Production.json
+
+# Ignore all files in the Data folder
+cert-renewal.log    
