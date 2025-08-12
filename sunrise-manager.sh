@@ -17,17 +17,13 @@ show_header() {
 }
 
 show_menu() {
-    echo "MAIN MENU:"
+    echo "MAIN MENU (Topic-based):"
     echo "--------------------------------------------------"
-    echo "1.  Backup MySQL Database (Manual)"
-    echo "2.  Docker Compose Down + Backup"
-    echo "3.  Restore MySQL Database"
-    echo "4.  List Available Backups"
-    echo "5.  Container Status"
-    echo "6.  Database Statistics"
-    echo "7.  Start All Services"
-    echo "8.  View Logs"
-    echo "9.  Delete User Scores"
+    echo "1.  Backup & Restore"
+    echo "2.  Services"
+    echo "3.  Database"
+    echo "4.  Logs"
+    echo "5.  User Score Tools"
     echo "0.  Exit"
     echo "--------------------------------------------------"
     echo ""
@@ -228,6 +224,69 @@ show_status() {
     read -p "Press Enter to return to menu..."
 }
 
+# =============================
+# Topic: Backup & Restore
+# =============================
+menu_backup_restore() {
+    echo "Backup & Restore"
+    echo "--------------------------------------------------"
+    echo "1. Backup MySQL Database (Manual)"
+    echo "2. Docker Compose Down + Backup"
+    echo "3. Restore MySQL Database"
+    echo "4. List Available Backups"
+    echo "0. Back to main menu"
+    read -p "Select option: " br_choice
+    case $br_choice in
+        1) backup_mysql ;;
+        2) docker_down_with_backup ;;
+        3) restore_mysql ;;
+        4) show_backups ;;
+        0) return ;;
+        *) echo "Invalid option!"; sleep 1 ;;
+    esac
+}
+
+# =============================
+# Topic: Services
+# =============================
+menu_services() {
+    echo "Services"
+    echo "--------------------------------------------------"
+    echo "1. Start All Services"
+    echo "2. Container Status & Resource Usage"
+    echo "0. Back to main menu"
+    read -p "Select option: " svc_choice
+    case $svc_choice in
+        1) start_services ;;
+        2) show_status ;;
+        0) return ;;
+        *) echo "Invalid option!"; sleep 1 ;;
+    esac
+}
+
+# =============================
+# Topic: Database
+# =============================
+menu_database() {
+    echo "Database"
+    echo "--------------------------------------------------"
+    echo "1. Database Statistics"
+    echo "0. Back to main menu"
+    read -p "Select option: " db_choice
+    case $db_choice in
+        1) show_database_stats ;;
+        0) return ;;
+        *) echo "Invalid option!"; sleep 1 ;;
+    esac
+}
+
+# =============================
+# Topic: Logs (reuses existing sub-menu)
+# =============================
+menu_logs() {
+    show_logs
+}
+
 start_services() {
     echo "Starting all services..."
     cd /home/ubuntu/Sunrise
@@ -280,92 +339,217 @@ show_logs() {
     esac
 }
 
-delete_user_scores() {
-    echo "Delete User Scores"
-    echo "--------------------------------------------------"
-    
+# =============================
+# User Score Tools (Backup/Delete per variant)
+# =============================
+
+ensure_mysql_running() {
     if ! docker ps | grep -q "osu-sunrise-mysql-sunrise-db-1"; then
         echo "MySQL container is not running!"
         echo "Starting MySQL container..."
-        cd /home/ubuntu/Sunrise
+        cd /home/ubuntu/Sunrise || return 1
         docker compose up mysql-sunrise-db -d
         sleep 5
     fi
-    
-    echo "⚠️  WARNING: This will permanently delete all scores, stats, and grades for a user!"
-    echo "⚠️  The user account will remain but will lose all gameplay data!"
-    echo ""
-    
-    read -p "Enter user ID to delete scores for: " user_id
-    
+}
+
+prompt_user_id() {
+    read -p "Enter user ID: " user_id
     if [[ ! "$user_id" =~ ^[0-9]+$ ]]; then
-        echo "Invalid user ID! Please enter a number."
-        read -p "Press Enter to return to menu..."
-        return
+        echo "Invalid user ID! Must be a number."
+        return 1
     fi
-    
-    echo ""
-    echo "Checking user data for ID: $user_id"
-    
-    # Check if user exists
-    user_exists=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT Username FROM user WHERE Id = $user_id;" -s -N 2>/dev/null)
-    
-    if [ -z "$user_exists" ] || [ "$user_exists" = "NULL" ]; then
-        echo "❌ User with ID $user_id not found!"
-        read -p "Press Enter to return to menu..."
-        return
+    return 0
+}
+
+verify_user_exists() {
+    local uid="$1"
+    local uname
+    uname=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT Username FROM user WHERE Id = $uid;" -s -N 2>/dev/null)
+    if [ -z "$uname" ] || [ "$uname" = "NULL" ]; then
+        echo "❌ User with ID $uid not found!"
+        return 1
     fi
-    
-    echo "✅ User found: $user_exists"
-    
-    # Count existing data
-    score_count=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM score WHERE UserId = $user_id;" -s -N 2>/dev/null)
-    stats_count=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_stats WHERE UserId = $user_id;" -s -N 2>/dev/null)
-    grades_count=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_grades WHERE UserId = $user_id;" -s -N 2>/dev/null)
-    
+    echo "✅ User found: $uname"
+    return 0
+}
+
+select_variant() {
+    echo "Select variant:"
+    echo "1) Standard"
+    echo "2) ScoreV2"
+    echo "3) Relax"
+    echo "4) Autopilot"
+    echo "0) Cancel"
+    read -p "Choose (0-4): " v
+    case "$v" in
+        1) variant="standard" ;;
+        2) variant="scorev2" ;;
+        3) variant="relax" ;;
+        4) variant="autopilot" ;;
+        0) return 1 ;;
+        *) echo "Invalid option"; return 1 ;;
+    esac
+    echo "$variant"
+    return 0
+}
+
+_build_filters_for_variant() {
+    # Outputs 3 values: gm_where|score_where|suffix
+    local variant="$1"
+    local gm_where score_where suffix
+    case "$variant" in
+        standard)
+            gm_where="GameMode BETWEEN 0 AND 3"
+            score_where="$gm_where"
+            suffix="std"
+            ;;
+        scorev2)
+            gm_where="GameMode BETWEEN 12 AND 15"
+            score_where="$gm_where"
+            suffix="v2"
+            ;;
+        relax)
+            gm_where="GameMode BETWEEN 4 AND 6"
+            score_where="$gm_where"
+            suffix="relax"
+            ;;
+        autopilot)
+            gm_where="GameMode = 8"
+            score_where="$gm_where"
+            suffix="ap"
+            ;;
+        *)
+            echo ""; return 1 ;;
+    esac
+    echo "$gm_where|$score_where|$suffix"
+}
+
+backup_user_scores_by_variant() {
+    ensure_mysql_running || return 1
+    prompt_user_id || { read -p "Press Enter to return to menu..."; return 1; }
+    local uid="$user_id"
+
+    local variant
+    variant=$(select_variant) || { read -p "Press Enter to return to menu..."; return 1; }
+
+    local filters gm_where score_where suffix
+    filters=$(_build_filters_for_variant "$variant") || { read -p "Press Enter to return to menu..."; return 1; }
+    gm_where=$(echo "$filters" | cut -d '|' -f1)
+    score_where=$(echo "$filters" | cut -d '|' -f2)
+    suffix=$(echo "$filters" | cut -d '|' -f3)
+
+    mkdir -p "$BACKUP_DIR"
+    local ts prefix
+    ts=$(date +%Y%m%d_%H%M%S)
+    prefix="user${uid}_${suffix}_${ts}"
+
+    echo "Creating backup files for user $uid ($variant)..."
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise score \
+        --where="UserId=${uid} AND (${score_where})" > "$BACKUP_DIR/${prefix}_score.sql" 2>/dev/null
+
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise user_stats \
+        --where="UserId=${uid} AND (${gm_where})" > "$BACKUP_DIR/${prefix}_user_stats.sql" 2>/dev/null
+
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise user_grades \
+        --where="UserId=${uid} AND (${gm_where})" > "$BACKUP_DIR/${prefix}_user_grades.sql" 2>/dev/null
+
+    echo "✅ Backup saved to:"
+    echo "- $BACKUP_DIR/${prefix}_score.sql"
+    echo "- $BACKUP_DIR/${prefix}_user_stats.sql"
+    echo "- $BACKUP_DIR/${prefix}_user_grades.sql"
     echo ""
+    read -p "Press Enter to return to menu..."
+}
+
+delete_user_scores_by_variant() {
+    ensure_mysql_running || return 1
+    prompt_user_id || { read -p "Press Enter to return to menu..."; return 1; }
+    local uid="$user_id"
+
+    echo "Checking user data for ID: $uid"
+    verify_user_exists "$uid" || { read -p "Press Enter to return to menu..."; return 1; }
+
+    local variant
+    variant=$(select_variant) || { read -p "Press Enter to return to menu..."; return 1; }
+
+    local filters gm_where score_where suffix
+    filters=$(_build_filters_for_variant "$variant") || { read -p "Press Enter to return to menu..."; return 1; }
+    gm_where=$(echo "$filters" | cut -d '|' -f1)
+    score_where=$(echo "$filters" | cut -d '|' -f2)
+    suffix=$(echo "$filters" | cut -d '|' -f3)
+
+    echo ""
+    echo "Counting existing data to be deleted (variant: $variant)..."
+    local score_cnt stats_cnt grades_cnt
+    score_cnt=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM score WHERE UserId=$uid AND ($score_where);" -s -N 2>/dev/null)
+    stats_cnt=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_stats WHERE UserId=$uid AND ($gm_where);" -s -N 2>/dev/null)
+    grades_cnt=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_grades WHERE UserId=$uid AND ($gm_where);" -s -N 2>/dev/null)
+
     echo "Data to be deleted:"
-    echo "- Scores: $score_count"
-    echo "- User Stats: $stats_count"
-    echo "- User Grades: $grades_count"
+    echo "- Scores: $score_cnt"
+    echo "- User Stats: $stats_cnt"
+    echo "- User Grades: $grades_cnt"
+
     echo ""
-    
-    read -p "Are you sure you want to delete all data for user '$user_exists' (ID: $user_id)? (yes/no): " confirm
-    
+    echo "Creating safety backup before deletion..."
+    mkdir -p "$BACKUP_DIR"
+    local ts prefix
+    ts=$(date +%Y%m%d_%H%M%S)
+    prefix="user${uid}_${suffix}_${ts}"
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise score \
+        --where="UserId=${uid} AND (${score_where})" > "$BACKUP_DIR/${prefix}_score.sql" 2>/dev/null
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise user_stats \
+        --where="UserId=${uid} AND (${gm_where})" > "$BACKUP_DIR/${prefix}_user_stats.sql" 2>/dev/null
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysqldump -u root -proot --no-create-info --skip-triggers --single-transaction --quick sunrise user_grades \
+        --where="UserId=${uid} AND (${gm_where})" > "$BACKUP_DIR/${prefix}_user_grades.sql" 2>/dev/null
+    echo "✅ Backup saved to $BACKUP_DIR with prefix ${prefix}_*.sql"
+
+    echo ""
+    read -p "Are you sure you want to delete ONLY $variant data for user ID $uid? Type 'yes' to confirm: " confirm
     if [ "$confirm" != "yes" ]; then
         echo "Operation cancelled."
         read -p "Press Enter to return to menu..."
         return
     fi
-    
+
+    echo "Deleting user $variant data in a transaction..."
+    docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; \
+        START TRANSACTION; \
+        DELETE FROM score WHERE UserId=$uid AND ($score_where); \
+        DELETE FROM user_stats WHERE UserId=$uid AND ($gm_where); \
+        DELETE FROM user_grades WHERE UserId=$uid AND ($gm_where); \
+        COMMIT;" 2>/dev/null
+
+    echo "Verifying..."
+    local score_after stats_after grades_after
+    score_after=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM score WHERE UserId=$uid AND ($score_where);" -s -N 2>/dev/null)
+    stats_after=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_stats WHERE UserId=$uid AND ($gm_where);" -s -N 2>/dev/null)
+    grades_after=$(docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; SELECT COUNT(*) FROM user_grades WHERE UserId=$uid AND ($gm_where);" -s -N 2>/dev/null)
+
+    echo "Post-delete counts:"
+    echo "- Scores: $score_after"
+    echo "- User Stats: $stats_after"
+    echo "- User Grades: $grades_after"
     echo ""
-    echo "🗑️  Deleting user data..."
-    
-    # Delete scores
-    if [ "$score_count" -gt 0 ]; then
-        docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; DELETE FROM score WHERE UserId = $user_id;" 2>/dev/null
-        echo "✅ Deleted $score_count scores"
-    fi
-    
-    # Delete user stats
-    if [ "$stats_count" -gt 0 ]; then
-        docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; DELETE FROM user_stats WHERE UserId = $user_id;" 2>/dev/null
-        echo "✅ Deleted $stats_count user stats"
-    fi
-    
-    # Delete user grades
-    if [ "$grades_count" -gt 0 ]; then
-        docker exec osu-sunrise-mysql-sunrise-db-1 mysql -u root -proot -e "USE sunrise; DELETE FROM user_grades WHERE UserId = $user_id;" 2>/dev/null
-        echo "✅ Deleted $grades_count user grades"
-    fi
-    
-    echo ""
-    echo "🎯 User '$user_exists' (ID: $user_id) data has been cleared!"
-    echo "📝 The user account remains and can login again."
-    echo "🎮 All scores, PP, stats, and grades have been reset."
-    echo ""
-    
     read -p "Press Enter to return to menu..."
+}
+
+user_score_tools_menu() {
+    echo "User Score Tools"
+    echo "--------------------------------------------------"
+    ensure_mysql_running || { read -p "Press Enter to return to menu..."; return; }
+
+    echo "1) Backup user data by variant (Standard / ScoreV2 / Relax / Autopilot)"
+    echo "2) Delete user data by variant (auto-backup first)"
+    echo "0) Back to main menu"
+    read -p "Choose (0-2): " c
+    case "$c" in
+        1) backup_user_scores_by_variant ;;
+        2) delete_user_scores_by_variant ;;
+        0) return ;;
+        *) echo "Invalid option"; sleep 1 ;;
+    esac
 }
 
 main() {
@@ -374,45 +558,23 @@ main() {
         show_header
         show_menu
         
-        read -p "Select option (0-9): " choice
+        read -p "Select option (0-5): " choice
         
         case $choice in
-            1)
-                backup_mysql
-                ;;
-            2)
-                docker_down_with_backup
-                ;;
-            3)
-                restore_mysql
-                ;;
-            4)
-                show_backups
-                ;;
-            5)
-                show_status
-                ;;
-            6)
-                show_database_stats
-                ;;
-            7)
-                start_services
-                ;;
-            8)
-                show_logs
-                ;;
-            9)
-                delete_user_scores
-                ;;
+            1) menu_backup_restore ;;
+            2) menu_services ;;
+            3) menu_database ;;
+            4) menu_logs ;;
+            5) user_score_tools_menu ;;
             0)
                 echo "Thank you for using Sunrise Manager!"
                 exit 0
                 ;;
             *)
-                echo "Invalid option! Please select 0-9"
+                echo "Invalid option! Please select 0-5"
                 sleep 2
                 ;;
-        esac
+        esac 
     done
 }
 
