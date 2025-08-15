@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Sunrise.Shared.Database;
 
@@ -10,9 +11,11 @@ using Sunrise.Shared.Database;
 namespace Sunrise.Shared.Database.Migrations
 {
     [DbContext(typeof(SunriseDbContext))]
-    partial class SunriseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250815094319_AddClans")]
+    partial class AddClans
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -440,40 +443,6 @@ namespace Sunrise.Shared.Database.Migrations
                     b.ToTable("user");
                 });
 
-            modelBuilder.Entity("Sunrise.Shared.Database.Models.Users.UserCustomBadge", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<string>("ColorHex")
-                        .HasMaxLength(7)
-                        .HasColumnType("varchar(7)");
-
-                    b.Property<string>("Icon")
-                        .HasMaxLength(32)
-                        .HasColumnType("varchar(32)");
-
-                    b.Property<string>("IconType")
-                        .HasMaxLength(16)
-                        .HasColumnType("varchar(16)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("varchar(32)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("user_custom_badge");
-                });
-
             modelBuilder.Entity("Sunrise.Shared.Database.Models.Users.UserFavouriteBeatmap", b =>
                 {
                     b.Property<int>("Id")
@@ -876,17 +845,6 @@ namespace Sunrise.Shared.Database.Migrations
                         .IsRequired();
 
                     b.Navigation("ReplayFile");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Sunrise.Shared.Database.Models.Users.UserCustomBadge", b =>
-                {
-                    b.HasOne("Sunrise.Shared.Database.Models.Users.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("User");
                 });
