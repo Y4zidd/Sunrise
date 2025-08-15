@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using Microsoft.EntityFrameworkCore;
 using osu.Shared;
 using Sunrise.API.Enums;
 using Sunrise.API.Objects;
@@ -8,6 +9,7 @@ using Sunrise.Shared.Application;
 using Sunrise.Shared.Database;
 using Sunrise.Shared.Database.Extensions;
 using Sunrise.Shared.Database.Models;
+using Sunrise.Shared.Database.Models.Clan;
 using Sunrise.Shared.Database.Objects;
 using Sunrise.Shared.Enums.Beatmaps;
 using Sunrise.Shared.Enums.Leaderboards;
@@ -307,13 +309,45 @@ public class ScoreService(BeatmapService beatmapService, DatabaseService databas
             return string.Join("\n", responses);
 
         var personalBest = scores.GetPersonalBestOf(session.UserId);
-        responses.Add(personalBest != null ? personalBest.GetString() : "");
+        if (personalBest != null)
+        {
+            var pbDisplayName = personalBest.User.Username;
+            if (personalBest.User.ClanId > 0)
+            {
+                using var pbScope = ServicesProviderHolder.CreateScope();
+                var pbDb = pbScope.ServiceProvider.GetRequiredService<DatabaseService>();
+                var pbClan = await pbDb.DbContext.Set<Clan>().FirstOrDefaultAsync(c => c.Id == personalBest.User.ClanId, ct);
+                if (pbClan != null && !string.IsNullOrWhiteSpace(pbClan.Tag))
+                {
+                    pbDisplayName = $"[{pbClan.Tag}] {pbDisplayName}";
+                }
+            }
+            responses.Add(personalBest.GetStringWithUsername(pbDisplayName));
+        }
+        else
+        {
+            responses.Add("");
+        }
 
         var leaderboardScores = scores.GetScoresGroupedByUsersBest().Take(50);
 
         foreach (var score in leaderboardScores)
         {
-            responses.Add(score.GetString());
+            var displayName = score.User.Username;
+
+            // prepend clan tag if any
+            if (score.User.ClanId > 0)
+            {
+                using var scope = ServicesProviderHolder.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<DatabaseService>();
+                var clan = await db.DbContext.Set<Clan>().FirstOrDefaultAsync(c => c.Id == score.User.ClanId, ct);
+                if (clan != null && !string.IsNullOrWhiteSpace(clan.Tag))
+                {
+                    displayName = $"[{clan.Tag}] {displayName}";
+                }
+            }
+
+            responses.Add(score.GetStringWithUsername(displayName));
         }
 
         return string.Join("\n", responses);

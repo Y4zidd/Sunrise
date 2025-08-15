@@ -206,6 +206,17 @@ public static class ScoreExtensions
             $"{score.Id}|{score.User.Username}|{totalScore}|{score.MaxCombo}|{score.Count50}|{score.Count100}|{score.Count300}|{score.CountMiss}|{score.CountKatu}|{score.CountGeki}|{score.Perfect}|{(int)score.Mods}|{score.UserId}|{score.LocalProperties.LeaderboardPosition}|{time}|{hasReplay}";
     }
 
+    public static string GetStringWithUsername(this Score score, string username)
+    {
+        var time = (int)score.WhenPlayed.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+        var hasReplay = score.ReplayFileId != null ? "1" : "0";
+
+        var totalScore = score.GameMode.IsGameModeWithoutScoreMultiplier() ? (int)score.PerformancePoints : score.TotalScore;
+
+        return
+            $"{score.Id}|{username}|{totalScore}|{score.MaxCombo}|{score.Count50}|{score.Count100}|{score.Count300}|{score.CountMiss}|{score.CountKatu}|{score.CountGeki}|{score.Perfect}|{(int)score.Mods}|{score.UserId}|{score.LocalProperties.LeaderboardPosition}|{time}|{hasReplay}";
+    }
+
     public static string ComputeOnlineHash(this Score score, string username, string clientHash, string? storyboardHash)
     {
         return string.Format(

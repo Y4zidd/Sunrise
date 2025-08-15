@@ -3,6 +3,7 @@ using Sunrise.Shared.Application;
 using Sunrise.Shared.Database.Models;
 using Sunrise.Shared.Database.Models.Beatmap;
 using Sunrise.Shared.Database.Models.Events;
+using Sunrise.Shared.Database.Models.Clan;
 using Sunrise.Shared.Database.Models.Users;
 
 namespace Sunrise.Shared.Database;
@@ -40,6 +41,8 @@ public class SunriseDbContext : DbContext
 
     public DbSet<BeatmapHype> BeatmapHypes { get; set; }
     public DbSet<CustomBeatmapStatus> CustomBeatmapStatuses { get; set; }
+
+    public DbSet<Clan> Clans { get; set; }
 
 
 

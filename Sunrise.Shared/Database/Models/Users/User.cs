@@ -12,6 +12,8 @@ namespace Sunrise.Shared.Database.Models.Users;
 [Index(nameof(Username), IsUnique = true)]
 [Index(nameof(Email), IsUnique = true)]
 [Index(nameof(AccountStatus))]
+[Index(nameof(ClanId))]
+[Index(nameof(ClanPriv))]
 public class User
 {
     public int Id { get; set; }
@@ -28,6 +30,10 @@ public class User
     public UserAccountStatus AccountStatus { get; set; } = UserAccountStatus.Active;
     public DateTime SilencedUntil { get; set; } = DateTime.MinValue;
     public GameMode DefaultGameMode { get; set; } = GameMode.Standard;
+
+    // Clans (bancho.py-ex compatible)
+    public int ClanId { get; set; } = 0;
+    public byte ClanPriv { get; set; } = 0;
 
     public ICollection<UserFile> UserFiles { get; set; } = new List<UserFile>();
     
