@@ -22,4 +22,7 @@ public static class RedisKey
     // Sorted Set
     public static string LeaderboardGlobal(GameMode mode) { return $"leaderboard:global:{(int)mode}"; }
     public static string LeaderboardCountry(GameMode mode, CountryCode countryCode) { return $"leaderboard:{(int)countryCode}:{(int)mode}"; }
+
+    // Moderation counters
+    public static string ChecksumIncidentsByUser(int userId) { return $"moderation:checksum:{userId}"; }
 }

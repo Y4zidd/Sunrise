@@ -79,6 +79,18 @@ public class RedisRepository(ConnectionMultiplexer redisConnection)
         await _generalDatabase.KeyDeleteAsync(keys.Select(x => (RedisKey)x).ToArray());
     }
 
+    public async Task<long> Increment(string key, TimeSpan? expire = null)
+    {
+        if (!UseCache) return 0;
+
+        var value = await _generalDatabase.StringIncrementAsync(key);
+        if (expire.HasValue)
+        {
+            await _generalDatabase.KeyExpireAsync(key, expire.Value, CommandFlags.FireAndForget);
+        }
+        return value;
+    }
+
     public async Task SortedSetAdd(string key, int value, double score)
     {
         var timestamp = long.MaxValue - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

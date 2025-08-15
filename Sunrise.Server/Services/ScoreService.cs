@@ -126,6 +126,27 @@ public class ScoreService(BeatmapService beatmapService, DatabaseService databas
         {
             await SaveRejectedScore(score);
             SubmitScoreHelper.ReportRejectionToMetrics(session, scoreSerialized, "Invalid checksums");
+
+            // Soft-first policy for checksum invalidation
+            if (!Configuration.StrictChecksumRestriction)
+            {
+                var window = TimeSpan.FromMinutes(Configuration.ChecksumRestrictWindowMinutes);
+                var key = RedisKey.ChecksumIncidentsByUser(session.UserId);
+                var incidents = await database.Redis.Increment(key, window);
+                var notifyMessage =
+                    $"Score rejected: invalid checksums (client/score/beatmap mismatch). Please re-login, verify osu! files, re-download the beatmap, and disable overlays/patchers. Repeated incidents may lead to a restriction. ({incidents}/{Configuration.ChecksumRestrictMaxIncidents})";
+                session.SendNotification(notifyMessage);
+
+                if (incidents >= Configuration.ChecksumRestrictMaxIncidents)
+                {
+                    await database.Users.Moderation.RestrictPlayer(session.UserId, null,
+                        "Invalid checksums on score submission (multiple incidents)");
+                }
+
+                return "error: no";
+            }
+
+            // Strict mode: immediate restrict
             await database.Users.Moderation.RestrictPlayer(session.UserId, null, "Invalid checksums on score submission");
             return "error: no";
         }

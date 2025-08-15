@@ -112,6 +112,9 @@ public static class Configuration
     // Moderation section
     public static int BannablePpThreshold => Config.GetSection("Moderation").GetSection("BannablePPThreshold").Get<int?>() ?? 3000;
     public static string[] BannedIps => Config.GetSection("Moderation").GetSection("BannedIps").Get<string[]>() ?? [];
+    public static bool StrictChecksumRestriction => Config.GetSection("Moderation").GetValue<bool?>("StrictChecksumRestriction") ?? false;
+    public static int ChecksumRestrictMaxIncidents => Config.GetSection("Moderation").GetValue<int?>("ChecksumRestrictMaxIncidents") ?? 3;
+    public static int ChecksumRestrictWindowMinutes => Config.GetSection("Moderation").GetValue<int?>("ChecksumRestrictWindowMinutes") ?? 1440;
 
 
     // Bot section
