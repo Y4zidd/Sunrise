@@ -1,14 +1,37 @@
 name: osu-sunrise-dev
 services:
-  redis:
+  sunrise-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5149:443"  # HTTPS for development
+      - "5150:80"   # HTTP for development
+    volumes:
+      - ./Data:/app/Data
+      - ./Sunrise.Server/appsettings.Development.json:/app/appsettings.Development.json
+      - ./certificate.pfx:/app/certificate.pfx
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:443;http://+:80
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=password
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certificate.pfx
+    # extra_hosts removed; using service name on shared docker network like production
+    restart: unless-stopped
+    depends_on:
+      - redis-dev
+      - mysql-sunrise-dev
+      - postgres-dev
+
+
+  redis-dev:
     image: redis:latest
     restart: unless-stopped
     volumes:
       - redis:/data
     ports:
-      - "6379:6379"
-    networks:
-      - monitoring
+      - "6380:6379"  # Changed from 6379 to avoid conflicts
+
 
   prometheus:
     image: prom/prometheus:latest
@@ -17,8 +40,7 @@ services:
       - ./prometheus.dev.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-    networks:
-      - monitoring
+
 
   grafana:
     image: grafana/grafana
@@ -31,10 +53,9 @@ services:
       - ./grafana:/var/lib/grafana
     depends_on:
       - prometheus
-    networks:
-      - monitoring
 
-  postgres:
+
+  postgres-dev:
     image: postgres:latest
     restart: unless-stopped
     environment:
@@ -42,11 +63,12 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: hangfire
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Changed from 5432 to avoid conflicts
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  mysql-sunrise-db:
+
+  mysql-sunrise-dev:
     image: mysql
     restart: unless-stopped
     environment:
@@ -55,7 +77,8 @@ services:
     volumes:
       - mysql:/var/lib/mysql
     ports:
-      - "3308:3306"
+      - "3309:3306"  # Changed from 3308 to use different port
+
 
 volumes:
   mysql:
@@ -63,5 +86,6 @@ volumes:
   postgres_data:
 
 networks:
-  monitoring:
-    driver: bridge
+  default:
+    external: true
+    name: sunrise-network
