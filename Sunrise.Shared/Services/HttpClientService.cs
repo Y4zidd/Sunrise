@@ -183,16 +183,9 @@ public class HttpClientService
             });
         }
 
-        // Add lightweight retry for Observatory only (transient failures)
-        var maxAttempts = server == ApiServer.Observatory ? 3 : 1;
-        var attempt = 0;
-        Exception? lastException = null;
-
-        while (attempt < maxAttempts)
+        try
         {
-            try
-            {
-                using var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, requestUri);
+            using var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, requestUri);
 
             if (body != null)
             {
@@ -208,7 +201,7 @@ public class HttpClientService
                 }
             }
 
-                var response = await _client.SendAsync(request, ct);
+            var response = await _client.SendAsync(request, ct);
 
             var rateLimit = string.Empty;
             var rateLimitReset = "60";
@@ -261,7 +254,7 @@ public class HttpClientService
                 }
             }
 
-                switch (typeof(T))
+            switch (typeof(T))
             {
                 case not null when typeof(T) == typeof(byte[]):
                     return (T)(object)await response.Content.ReadAsByteArrayAsync(ct);
@@ -301,38 +294,25 @@ public class HttpClientService
                         Message = "Exception occured while deserializing data",
                         Status = HttpStatusCode.BadRequest
                     });
-                }
             }
-            catch (OperationCanceledException oce)
-            {
-                lastException = oce;
-            }
-            catch (HttpRequestException hre)
-            {
-                lastException = hre;
-            }
-            catch (Exception e)
-            {
-                lastException = e;
-            }
-
-            attempt++;
-
-            // Only retry for Observatory; for others or last attempt, break to return failure
-            if (attempt >= maxAttempts || server != ApiServer.Observatory)
-                break;
-
-            // Small exponential backoff
-            var delayMs = (int)(300 * Math.Pow(3, attempt - 1));
-            await Task.Delay(delayMs, CancellationToken.None);
         }
-
-        _logger.LogError(lastException, $"Failed to process request to {server} with uri {requestUri}");
-        return Result.Failure<T, ErrorMessage>(new ErrorMessage
+        catch (OperationCanceledException)
         {
-            Message = $"Failed to process request to {server} with uri {requestUri}",
-            Status = HttpStatusCode.BadRequest
-        });
+            return Result.Failure<T, ErrorMessage>(new ErrorMessage
+            {
+                Message = "Operation was cancelled.",
+                Status = HttpStatusCode.BadRequest
+            });
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, $"Failed to process request to {server} with uri {requestUri}");
+            return Result.Failure<T, ErrorMessage>(new ErrorMessage
+            {
+                Message = $"Failed to process request to {server} with uri {requestUri}",
+                Status = HttpStatusCode.BadRequest
+            });
+        }
     }
 
     private string SerializeUrlQuery(string url)

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Hangfire;
 using osu.Shared;
 using Sunrise.Shared.Application;
 using Sunrise.Shared.Database.Models;
@@ -146,15 +145,6 @@ public static class ScoreExtensions
         {
             SunriseMetrics.RequestReturnedErrorCounterInc(RequestType.OsuSubmitScore, session, scorePerformanceResult.Error.Message);
             score.PerformancePoints = 0;
-
-            // Notify player that PP calculation will be retried later
-            if (session is Session gameSession)
-            {
-                gameSession.SendNotification("Beatmap service is temporarily unavailable. Your score is saved and PP will be calculated automatically once the service recovers.");
-            }
-
-            // Enqueue background PP recalculation job
-            BackgroundJob.Enqueue(() => Sunrise.Shared.Jobs.RecalcScorePpJob.ProcessByScoreHash(score.ScoreHash));
         }
         else
         {

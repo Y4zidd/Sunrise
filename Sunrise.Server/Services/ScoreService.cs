@@ -126,31 +126,7 @@ public class ScoreService(BeatmapService beatmapService, DatabaseService databas
         {
             await SaveRejectedScore(score);
             SubmitScoreHelper.ReportRejectionToMetrics(session, scoreSerialized, "Invalid checksums");
-
-            // Inform the player with a concise message and avoid instant restrict
-            if (session is Session gameSession)
-            {
-                gameSession.SendNotification("Score rejected due to checksum mismatch (validation failed). Please re-download the beatmap, avoid modified files/clients, and try again. If this keeps happening, contact support.");
-            }
-
-            // Threshold-based auto restrict to prevent abuse: 3 invalid submissions within 10 minutes
-            try
-            {
-                var redisKey = $"invalid:checksums:{session.UserId}";
-                var current = await database.Redis.Get<int?>(redisKey) ?? 0;
-                current++;
-                await database.Redis.Set(redisKey, current, TimeSpan.FromMinutes(10));
-
-                if (current >= 3)
-                {
-                    await database.Users.Moderation.RestrictPlayer(session.UserId, null, "Invalid checksums on score submission (threshold)");
-                }
-            }
-            catch
-            {
-                // ignore redis failures; still reject score gracefully
-            }
-
+            await database.Users.Moderation.RestrictPlayer(session.UserId, null, "Invalid checksums on score submission");
             return "error: no";
         }
 

@@ -79,13 +79,4 @@ public static class BackgroundTaskService
             trySendMessage?.Invoke($"Server is back online. Took time to proceed job \"{jobName}\": {stopwatch.ElapsedMilliseconds / 1000.0} s.");
         }
     }
-
-    // Facade used from Shared layer to enqueue Hangfire jobs without tight coupling
-    public class BackgroundTaskServiceStub
-    {
-        public void EnqueueRecalcScorePp(string scoreHash)
-        {
-            BackgroundJob.Enqueue(() => Sunrise.Shared.Jobs.RecalcScorePpJob.ProcessByScoreHash(scoreHash));
-        }
-    }
 }
