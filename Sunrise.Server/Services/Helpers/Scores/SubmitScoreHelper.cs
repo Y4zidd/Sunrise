@@ -31,6 +31,11 @@ public static class SubmitScoreHelper
     {
         var message = string.Format(MetricsError, scoreData, session.UserId, reason);
         SunriseMetrics.RequestReturnedErrorCounterInc(RequestType.OsuSubmitScore, null, message);
+
+        using var scope = ServicesProviderHolder.CreateScope();
+        var loggerFactory = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("AntiCheat");
+        logger.LogWarning("AntiCheat | {Reason} | UserId={UserId} | Details={Details}", reason, session.UserId, scoreData);
     }
 
     public static void UpdateSubmissionStatus(this Score score, Score? prevPBest)
@@ -92,7 +97,20 @@ public static class SubmitScoreHelper
             return true;
         }
 
-        ReportRejectionToMetrics(session, $"{clientHash}|{session.Attributes.UserHash}|{score.ScoreHash}|{computedOnlineHash}|{beatmapHash}|{onlineBeatmapHash}.storyboard.{storyboardHash}", "Invalid checksums on score submission");
+        // Include raw components to aid forensic analysis on next incidents
+        var forensic = string.Join("|",
+            new[]
+            {
+                $"clientHash={clientHash}",
+                $"sessionHash={session.Attributes.UserHash}",
+                $"scoreHash={score.ScoreHash}",
+                $"computedHash={computedOnlineHash}",
+                $"beatmapHash={beatmapHash}",
+                $"onlineBeatmapHash={onlineBeatmapHash}",
+                $"storyboardHash={storyboardHash ?? string.Empty}"
+            }
+        );
+        ReportRejectionToMetrics(session, forensic, "Invalid checksums on score submission");
         return false;
     }
 
