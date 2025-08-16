@@ -216,6 +216,38 @@ public class ClanRepository(SunriseDbContext dbContext)
 
         return null;
     }
+
+    public async Task<(double TotalPp, double AveragePp, long RankedScore, double Accuracy)> GetClanStats(GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        var sql = @"
+            SELECT 
+                COALESCE(SUM(s.PerformancePoints),0) AS TotalPP,
+                COALESCE(AVG(s.PerformancePoints),0) AS AveragePP,
+                COALESCE(SUM(s.RankedScore),0) AS RankedScore,
+                COALESCE(AVG(s.Accuracy),0) AS Accuracy
+            FROM clan c
+            LEFT JOIN user u ON u.ClanId = c.Id
+            LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {0}
+            WHERE c.Id = {1}";
+
+        await using var conn = dbContext.Database.GetDbConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql.Replace("{0}", ((int)mode).ToString())
+                              .Replace("{1}", clanId.ToString());
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            var totalPp = reader.IsDBNull(reader.GetOrdinal("TotalPP")) ? 0d : reader.GetDouble(reader.GetOrdinal("TotalPP"));
+            var avgPp = reader.IsDBNull(reader.GetOrdinal("AveragePP")) ? 0d : reader.GetDouble(reader.GetOrdinal("AveragePP"));
+            var rankedScore = reader.IsDBNull(reader.GetOrdinal("RankedScore")) ? 0L : reader.GetInt64(reader.GetOrdinal("RankedScore"));
+            var acc = reader.IsDBNull(reader.GetOrdinal("Accuracy")) ? 0d : reader.GetDouble(reader.GetOrdinal("Accuracy"));
+            return (totalPp, avgPp, rankedScore, acc);
+        }
+
+        return (0, 0, 0, 0);
+    }
 }
 
 
