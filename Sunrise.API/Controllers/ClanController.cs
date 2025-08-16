@@ -31,6 +31,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var members = await clanRepository.GetMembers(id, ct);
         var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
         var rank = await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
+        var statsAgg = await clanRepository.GetClanStats(mode, id, ct);
 
         return Ok(new
         {
@@ -54,7 +55,11 @@ public class ClanController(DatabaseService database, ClanService clanService, C
                 }
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
-            rank
+            rank,
+            totalPp = statsAgg.TotalPp,
+            averagePp = statsAgg.AveragePp,
+            rankedScore = statsAgg.RankedScore,
+            accuracy = statsAgg.Accuracy
         });
     }
     
