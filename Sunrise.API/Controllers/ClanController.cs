@@ -167,6 +167,8 @@ public class ClanController(DatabaseService database, ClanService clanService, C
     }
 }
 
+public record StatsSnapshotsResponse(List<StatsSnapshot> Snapshots);
+
 public record CreateClanRequest(string Name, string Tag, string? Description);
 
 

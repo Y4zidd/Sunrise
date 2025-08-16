@@ -328,6 +328,20 @@ public class ClanRepository(SunriseDbContext dbContext)
 
         return result == null ? (0, 0, 0, 0, 0) : (result.XH, result.X, result.SH, result.S, result.A);
     }
+
+    public async Task<List<UserStatsSnapshot>> GetMemberSnapshots(GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        var userIds = await dbContext.Set<User>()
+            .Where(u => u.ClanId == clanId)
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+
+        var snapshots = await dbContext.Set<UserStatsSnapshot>()
+            .Where(s => userIds.Contains(s.UserId) && s.GameMode == mode)
+            .ToListAsync(ct);
+
+        return snapshots;
+    }
 }
 
 
