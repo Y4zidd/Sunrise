@@ -36,6 +36,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var statsAgg = useEf
             ? await clanRepository.GetClanStatsEf(mode, id, ct)
             : await clanRepository.GetClanStats(mode, id, ct);
+        var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (0,0,0,0,0);
 
         return Ok(new
         {
@@ -59,11 +60,14 @@ public class ClanController(DatabaseService database, ClanService clanService, C
                 }
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
+            ownerLastActive = owner?.LastOnlineTime,
             rank,
             totalPp = statsAgg.TotalPp,
             averagePp = statsAgg.AveragePp,
             rankedScore = statsAgg.RankedScore,
-            accuracy = statsAgg.Accuracy
+            accuracy = statsAgg.Accuracy,
+            // aggregated grades (optional for now; only when useEf = true)
+            grades = useEf ? new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A } : null
         });
     }
     
