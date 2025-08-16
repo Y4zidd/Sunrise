@@ -179,6 +179,43 @@ public class ClanRepository(SunriseDbContext dbContext)
         if (clan == null) return null;
         return new ClanLeaderboardItem { ClanId = clan.Id, Name = clan.Name, Tag = clan.Tag, OwnerId = clan.OwnerId };
     }
+
+    public async Task<int?> GetClanRank(ClanLeaderboardMetric metric, GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        string orderExpr = metric switch
+        {
+            ClanLeaderboardMetric.TotalPP => "COALESCE(SUM(s.PerformancePoints),0)",
+            ClanLeaderboardMetric.AveragePP => "COALESCE(AVG(s.PerformancePoints),0)",
+            ClanLeaderboardMetric.RankedScore => "COALESCE(SUM(s.RankedScore),0)",
+            ClanLeaderboardMetric.Accuracy => "COALESCE(AVG(s.Accuracy),0)",
+            _ => "COALESCE(SUM(s.PerformancePoints),0)"
+        };
+
+        var sql = $@"
+            SELECT * FROM (
+                SELECT c.Id AS ClanId,
+                       RANK() OVER (ORDER BY {orderExpr} DESC) AS `Rank`
+                FROM clan c
+                LEFT JOIN user u ON u.ClanId = c.Id
+                LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {{0}}
+                GROUP BY c.Id
+            ) t
+            WHERE t.ClanId = {{1}}";
+
+        await using var conn = dbContext.Database.GetDbConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql.Replace("{0}", ((int)mode).ToString())
+                              .Replace("{1}", clanId.ToString());
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (await reader.ReadAsync(ct))
+        {
+            return reader.GetInt32(reader.GetOrdinal("Rank"));
+        }
+
+        return null;
+    }
 }
 
 

@@ -8,6 +8,7 @@ using Sunrise.Shared.Services;
 using Sunrise.Shared.Database.Repositories;
 using Sunrise.Shared.Enums.Beatmaps;
 using Sunrise.Shared.Enums.Clan;
+using Sunrise.Shared.Database.Models.Users;
  
 
 namespace Sunrise.API.Controllers;
@@ -18,6 +19,44 @@ namespace Sunrise.API.Controllers;
 [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
 public class ClanController(DatabaseService database, ClanService clanService, ClanRepository clanRepository) : ControllerBase
 {
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] int id, [FromQuery] GameMode mode = GameMode.Standard, CancellationToken ct = default)
+    {
+        var clan = await clanRepository.GetById(id, ct);
+        if (clan == null) return NotFound(new ErrorResponse("Clan not found"));
+
+        // Members are optional; frontend can handle empty lists
+        var members = await clanRepository.GetMembers(id, ct);
+        var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
+        var rank = await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
+
+        return Ok(new
+        {
+            id = clan.Id,
+            tag = clan.Tag,
+            name = clan.Name,
+            ownerId = clan.OwnerId,
+            createdAt = clan.CreatedAt,
+            memberCount = members.Count,
+            members = members.Select(m => new
+            {
+                id = m.Id,
+                name = m.Username,
+                country = m.Country.ToString(),
+                rank = m.ClanPriv switch
+                {
+                    3 => "Owner",
+                    2 => "Officer",
+                    1 => "Member",
+                    _ => (string?)null
+                }
+            }),
+            owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
+            rank
+        });
+    }
     
     [HttpPost("create")]
     [ProducesResponseType(typeof(ClanResponse), StatusCodes.Status200OK)]
