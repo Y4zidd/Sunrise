@@ -308,6 +308,26 @@ public class ClanRepository(SunriseDbContext dbContext)
 
         return ranked.TryGetValue(clanId, out var rank) ? rank : null;
     }
+
+    public async Task<(int XH, int X, int SH, int S, int A)> GetClanGradesEf(GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId);
+        var gradesQuery = dbContext.Set<UserGrades>().Where(g => g.GameMode == mode).Join(usersQuery, g => g.UserId, u => u.Id, (g, u) => g);
+
+        var result = await gradesQuery
+            .GroupBy(g => 1)
+            .Select(g => new
+            {
+                XH = g.Sum(x => x.CountXH),
+                X = g.Sum(x => x.CountX),
+                SH = g.Sum(x => x.CountSH),
+                S = g.Sum(x => x.CountS),
+                A = g.Sum(x => x.CountA)
+            })
+            .FirstOrDefaultAsync(ct);
+
+        return result == null ? (0, 0, 0, 0, 0) : (result.XH, result.X, result.SH, result.S, result.A);
+    }
 }
 
 
