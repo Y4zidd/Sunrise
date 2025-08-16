@@ -248,6 +248,66 @@ public class ClanRepository(SunriseDbContext dbContext)
 
         return (0, 0, 0, 0);
     }
+
+    // EF/LINQ variants for experimentation: may be less performant on large datasets
+    public async Task<(double TotalPp, double AveragePp, long RankedScore, double Accuracy)> GetClanStatsEf(GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId);
+        var statsQuery = dbContext.Set<UserStats>().Where(s => s.GameMode == mode).Join(usersQuery, s => s.UserId, u => u.Id, (s, u) => s);
+
+        var totalPp = await statsQuery.SumAsync(s => (double?)s.PerformancePoints, ct) ?? 0d;
+        var averagePp = await statsQuery.AverageAsync(s => (double?)s.PerformancePoints, ct) ?? 0d;
+        var rankedScore = await statsQuery.SumAsync(s => (long?)s.RankedScore, ct) ?? 0L;
+        var accuracy = await statsQuery.AverageAsync(s => (double?)s.Accuracy, ct) ?? 0d;
+
+        return (totalPp, averagePp, rankedScore, accuracy);
+    }
+
+    public async Task<int?> GetClanRankEf(ClanLeaderboardMetric metric, GameMode mode, int clanId, CancellationToken ct = default)
+    {
+        var statSelector = metric switch
+        {
+            ClanLeaderboardMetric.TotalPP => new Func<UserStats, double>(s => s.PerformancePoints),
+            ClanLeaderboardMetric.AveragePP => new Func<UserStats, double>(s => s.PerformancePoints),
+            ClanLeaderboardMetric.RankedScore => new Func<UserStats, double>(s => s.RankedScore),
+            ClanLeaderboardMetric.Accuracy => new Func<UserStats, double>(s => s.Accuracy),
+            _ => new Func<UserStats, double>(s => s.PerformancePoints)
+        };
+
+        // Build aggregation per clan
+        var aggregated = await dbContext.Set<User>()
+            .GroupJoin(dbContext.Set<UserStats>().Where(s => s.GameMode == mode), u => u.Id, s => s.UserId,
+                (u, stats) => new { u.ClanId, Stats = stats })
+            .Where(x => x.ClanId != 0)
+            .GroupBy(x => x.ClanId)
+            .Select(g => new
+            {
+                ClanId = g.Key,
+                TotalPp = g.SelectMany(x => x.Stats).Sum(s => s.PerformancePoints),
+                AveragePp = g.SelectMany(x => x.Stats).Average(s => s.PerformancePoints),
+                RankedScore = g.SelectMany(x => x.Stats).Sum(s => (long)s.RankedScore),
+                Accuracy = g.SelectMany(x => x.Stats).Average(s => s.Accuracy)
+            })
+            .ToListAsync(ct);
+
+        if (aggregated.Count == 0) return null;
+
+        IEnumerable<(int ClanId, double Value)> orderSource = metric switch
+        {
+            ClanLeaderboardMetric.TotalPP => aggregated.Select(a => (a.ClanId, a.TotalPp)),
+            ClanLeaderboardMetric.AveragePP => aggregated.Select(a => (a.ClanId, a.AveragePp)),
+            ClanLeaderboardMetric.RankedScore => aggregated.Select(a => (a.ClanId, (double)a.RankedScore)),
+            ClanLeaderboardMetric.Accuracy => aggregated.Select(a => (a.ClanId, a.Accuracy)),
+            _ => aggregated.Select(a => (a.ClanId, a.TotalPp))
+        };
+
+        var ranked = orderSource
+            .OrderByDescending(x => x.Value)
+            .Select((x, index) => new { x.ClanId, Rank = index + 1 })
+            .ToDictionary(x => x.ClanId, x => x.Rank);
+
+        return ranked.TryGetValue(clanId, out var rank) ? rank : null;
+    }
 }
 
 
