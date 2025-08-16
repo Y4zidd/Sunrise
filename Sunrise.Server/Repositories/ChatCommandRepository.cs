@@ -11,6 +11,8 @@ using Sunrise.Shared.Objects;
 using Sunrise.Shared.Objects.Chat;
 using Sunrise.Shared.Objects.Sessions;
 using Sunrise.Shared.Repositories;
+using Sunrise.Shared.Enums.Users;
+using Sunrise.Shared.Database.Repositories;
 
 namespace Sunrise.Server.Repositories;
 
@@ -67,7 +69,22 @@ public static class ChatCommandRepository
             return;
         }
 
-        if (!sessionUser.Privilege.HasFlag(handler.RequiredPrivileges))
+        // Restrict PM bot commands for non-staff to clan/help only
+        if (message.Channel == Configuration.BotUsername && !IsStaff(sessionUser.Privilege))
+        {
+            var isClanCommand = handler.Prefix == "clan";
+            var isHelpCommand = command == "help" || handler.Prefix == "clan" && command == "clan"; // allow bare `!clan` root help
+
+            if (!isClanCommand && !isHelpCommand)
+            {
+                SendMessage(session, $"Only clan commands are available. Type {Configuration.BotPrefix}help to see clan commands.");
+                return;
+            }
+        }
+
+        var isClanPrefix = handler.Prefix == "clan";
+
+        if (!isClanPrefix && handler.RequiredPrivileges != UserPrivilege.User && !sessionUser.Privilege.HasFlag(handler.RequiredPrivileges))
         {
             SendMessage(session, "You don't have permission to use this command.");
             return;
@@ -104,6 +121,46 @@ public static class ChatCommandRepository
             .Where(x => !x.Value.Prefix.Contains("mp") || session.Match != null) // Don't add multiplayer specific commands, if user is currently not in multiplayer match.
             .Select(x => x.Key)
             .ToArray();
+    }
+
+    public static string[] GetAvailableCommandsForPm(Session session)
+    {
+        using var scope = ServicesProviderHolder.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<DatabaseService>();
+        var clanRepo = scope.ServiceProvider.GetRequiredService<ClanRepository>();
+
+        var sessionUser = database.Users.GetUser(session.UserId).Result;
+        if (sessionUser == null)
+            return [];
+
+        var privilege = sessionUser.Privilege;
+        var isOwner = clanRepo.GetByOwner(sessionUser.Id).Result != null;
+        var isMember = sessionUser.ClanId != 0;
+
+        var baseQuery = Handlers
+            .Where(x => privilege.HasFlag(x.Value.RequiredPrivileges))
+            .Where(x => !x.Value.Prefix.Contains("mp") || session.Match != null);
+
+        // If non-staff, only show clan commands in PM help
+        if (!IsStaff(privilege))
+        {
+            baseQuery = baseQuery.Where(x => x.Value.Prefix == "clan");
+            if (!isOwner)
+            {
+                // Hide owner-only commands
+                baseQuery = baseQuery.Where(x => x.Key != "clan disband" && x.Key != "clan transfer" && x.Key != "clan promote" && x.Key != "clan demote");
+
+                // Additionally, for non-owner (both not in clan and joined as member),
+                // only show a minimal set: create, join, info, list
+                var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "clan create", "clan join", "clan info", "clan list"
+                };
+                baseQuery = baseQuery.Where(x => allowed.Contains(x.Key));
+            }
+        }
+
+        return baseQuery.Select(x => x.Key).ToArray();
     }
 
     public static void SendMessage(Session session, string message, string? channel = null)
@@ -208,5 +265,10 @@ public static class ChatCommandRepository
     private static ChatCommand? GetHandler(string command)
     {
         return Handlers.GetValueOrDefault(command);
+    }
+
+    private static bool IsStaff(UserPrivilege privilege)
+    {
+        return privilege.HasFlag(UserPrivilege.Admin) || privilege.HasFlag(UserPrivilege.Developer);
     }
 }
