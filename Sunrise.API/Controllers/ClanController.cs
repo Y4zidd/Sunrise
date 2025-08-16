@@ -36,7 +36,8 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var statsAgg = useEf
             ? await clanRepository.GetClanStatsEf(mode, id, ct)
             : await clanRepository.GetClanStats(mode, id, ct);
-        var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (0,0,0,0,0);
+        // Always return aggregated grades so UI can display grade boxes
+        var grades = await clanRepository.GetClanGradesEf(mode, id, ct);
 
         return Ok(new
         {
@@ -66,8 +67,8 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             averagePp = statsAgg.AveragePp,
             rankedScore = statsAgg.RankedScore,
             accuracy = statsAgg.Accuracy,
-            // aggregated grades (optional for now; only when useEf = true)
-            grades = useEf ? new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A } : null
+            // aggregated grades for clan members
+            grades = new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A }
         });
     }
     
