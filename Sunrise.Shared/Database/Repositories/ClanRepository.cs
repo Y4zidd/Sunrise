@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Sunrise.Shared.Database.Models.Clan;
 using Sunrise.Shared.Database.Models.Users;
+using Sunrise.Shared.Enums.Clan;
+using Sunrise.Shared.Database.Objects.Clan;
+using GameMode = Sunrise.Shared.Enums.Beatmaps.GameMode;
 
 namespace Sunrise.Shared.Database.Repositories;
 
@@ -81,6 +84,97 @@ public class ClanRepository(SunriseDbContext dbContext)
         if (user == null) return;
         user.ClanPriv = clanPriv;
         await dbContext.SaveChangesAsync(ct);
+    }
+
+    // Join requests
+    public async Task<bool> HasPendingRequest(int clanId, int userId, CancellationToken ct = default)
+        => await dbContext.Set<ClanJoinRequest>().AnyAsync(r => r.ClanId == clanId && r.UserId == userId && r.Status == ClanJoinRequestStatus.Pending, ct);
+
+    public async Task<ClanJoinRequest> CreateRequest(int clanId, int userId, int requestedBy, CancellationToken ct = default)
+    {
+        var req = new ClanJoinRequest { ClanId = clanId, UserId = userId, RequestedBy = requestedBy, Status = ClanJoinRequestStatus.Pending };
+        await dbContext.Set<ClanJoinRequest>().AddAsync(req, ct);
+        await dbContext.SaveChangesAsync(ct);
+        return req;
+    }
+
+    public async Task<ClanJoinRequest?> GetRequest(int requestId, CancellationToken ct = default)
+        => await dbContext.Set<ClanJoinRequest>().FirstOrDefaultAsync(r => r.Id == requestId, ct);
+
+    public async Task<List<ClanJoinRequest>> GetRequests(int clanId, ClanJoinRequestStatus? status, int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = dbContext.Set<ClanJoinRequest>().Where(r => r.ClanId == clanId);
+        if (status != null) q = q.Where(r => r.Status == status);
+        return await q.OrderByDescending(r => r.CreatedAt).Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+    }
+
+    public async Task UpdateRequest(ClanJoinRequest req, CancellationToken ct = default)
+    {
+        dbContext.Update(req);
+        await dbContext.SaveChangesAsync(ct);
+    }
+
+    public async Task<List<ClanLeaderboardItem>> GetClanLeaderboard(ClanLeaderboardMetric metric, GameMode mode, int page, int pageSize, CancellationToken ct = default)
+    {
+        // Using raw SQL to leverage window functions like Shiina
+        string orderExpr = metric switch
+        {
+            ClanLeaderboardMetric.TotalPP => "COALESCE(SUM(s.PerformancePoints),0)",
+            ClanLeaderboardMetric.AveragePP => "COALESCE(AVG(s.PerformancePoints),0)",
+            ClanLeaderboardMetric.RankedScore => "COALESCE(SUM(s.RankedScore),0)",
+            ClanLeaderboardMetric.Accuracy => "COALESCE(AVG(s.Accuracy),0)",
+            _ => "COALESCE(SUM(s.PerformancePoints),0)"
+        };
+
+        var sql = $@"
+            SELECT * FROM (
+                SELECT c.Id AS ClanId, c.Name, c.Tag, c.OwnerId,
+                       COUNT(u.Id) AS MemberCount,
+                       {orderExpr} AS Value,
+                       RANK() OVER (ORDER BY {orderExpr} DESC) AS `Rank`
+                FROM clan c
+                LEFT JOIN user u ON u.ClanId = c.Id
+                LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {{0}}
+                GROUP BY c.Id
+            ) t
+            WHERE t.Value > 0
+            ORDER BY t.Rank ASC
+            LIMIT {{1}} OFFSET {{2}}";
+
+        var items = new List<ClanLeaderboardItem>();
+
+        await using var conn = dbContext.Database.GetDbConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        // Inline values for execution (safe here since values are ints and validated)
+        cmd.CommandText = sql.Replace("{0}", ((int)mode).ToString())
+                             .Replace("{1}", pageSize.ToString())
+                             .Replace("{2}", (page * pageSize).ToString());
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            items.Add(new ClanLeaderboardItem
+            {
+                ClanId = reader.GetInt32(reader.GetOrdinal("ClanId")),
+                Name = reader.GetString(reader.GetOrdinal("Name")),
+                Tag = reader.GetString(reader.GetOrdinal("Tag")),
+                OwnerId = reader.GetInt32(reader.GetOrdinal("OwnerId")),
+                MemberCount = reader.GetInt32(reader.GetOrdinal("MemberCount")),
+                Value = reader.GetDouble(reader.GetOrdinal("Value")),
+                Rank = reader.GetInt32(reader.GetOrdinal("Rank"))
+            });
+        }
+
+        return items;
+    }
+
+    public async Task<ClanLeaderboardItem?> GetClanMetrics(int clanId, CancellationToken ct = default)
+    {
+        // This method can be expanded to return multiple metrics at once if needed by a custom DTO
+        var clan = await GetById(clanId, ct);
+        if (clan == null) return null;
+        return new ClanLeaderboardItem { ClanId = clan.Id, Name = clan.Name, Tag = clan.Tag, OwnerId = clan.OwnerId };
     }
 }
 
