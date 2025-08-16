@@ -22,7 +22,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
     [HttpGet("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById([FromRoute] int id, [FromQuery] GameMode mode = GameMode.Standard, CancellationToken ct = default)
+    public async Task<IActionResult> GetById([FromRoute] int id, [FromQuery] GameMode mode = GameMode.Standard, [FromQuery] bool useEf = false, CancellationToken ct = default)
     {
         var clan = await clanRepository.GetById(id, ct);
         if (clan == null) return NotFound(new ErrorResponse("Clan not found"));
@@ -30,8 +30,12 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         // Members are optional; frontend can handle empty lists
         var members = await clanRepository.GetMembers(id, ct);
         var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
-        var rank = await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
-        var statsAgg = await clanRepository.GetClanStats(mode, id, ct);
+        var rank = useEf
+            ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.TotalPP, mode, id, ct)
+            : await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
+        var statsAgg = useEf
+            ? await clanRepository.GetClanStatsEf(mode, id, ct)
+            : await clanRepository.GetClanStats(mode, id, ct);
 
         return Ok(new
         {
