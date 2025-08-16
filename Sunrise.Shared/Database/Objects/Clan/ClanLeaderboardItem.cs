@@ -8,7 +8,8 @@ public class ClanLeaderboardItem
     public int OwnerId { get; set; }
     public int MemberCount { get; set; }
     public double Value { get; set; }
+    public double AvgAcc { get; set; }
+    public long PlayCount { get; set; }
     public int Rank { get; set; }
 }
-
 
