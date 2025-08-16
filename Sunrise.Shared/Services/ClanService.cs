@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Sunrise.Shared.Database;
 using Sunrise.Shared.Database.Models.Clan;
 using Sunrise.Shared.Database.Models.Users;
+using Sunrise.Shared.Enums.Clan;
 using Sunrise.Shared.Database.Repositories;
 
 namespace Sunrise.Shared.Services;
@@ -158,6 +159,59 @@ public class ClanService(ClanRepository clanRepository, DatabaseService database
             return Result.Failure("Owner cannot be demoted");
 
         await clanRepository.SetUserClanPrivilege(targetUserId, 1, ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> RequestJoin(int userId, int clanId, CancellationToken ct = default)
+    {
+        var clan = await clanRepository.GetById(clanId, ct);
+        if (clan == null) return Result.Failure("Clan not found");
+        if (await clanRepository.IsUserInAnyClan(userId, ct)) return Result.Failure("User already in a clan");
+        if (await clanRepository.HasPendingRequest(clanId, userId, ct)) return Result.Failure("You already have a pending request");
+        await clanRepository.CreateRequest(clanId, userId, userId, ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> RevokeJoinRequest(int userId, int clanId, CancellationToken ct = default)
+    {
+        var pending = await clanRepository.GetRequests(clanId, ClanJoinRequestStatus.Pending, 0, 100, ct);
+        var req = pending.FirstOrDefault(r => r.UserId == userId);
+        if (req == null) return Result.Failure("No pending request found");
+        req.Status = ClanJoinRequestStatus.Revoked;
+        req.UpdatedAt = DateTime.UtcNow;
+        req.ActionedBy = userId;
+        await clanRepository.UpdateRequest(req, ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> ApproveRequest(int ownerId, int requestId, int targetUserId, CancellationToken ct = default)
+    {
+        var clan = await clanRepository.GetByOwner(ownerId, ct);
+        if (clan == null) return Result.Failure("You are not an owner of any clan");
+        var req = await clanRepository.GetRequest(requestId, ct);
+        if (req == null || req.ClanId != clan.Id || req.UserId != targetUserId) return Result.Failure("Request not found");
+        if (req.Status != ClanJoinRequestStatus.Pending) return Result.Failure("Request is not pending");
+
+        await clanRepository.JoinClan(clan.Id, targetUserId, ct);
+
+        req.Status = ClanJoinRequestStatus.Approved;
+        req.UpdatedAt = DateTime.UtcNow;
+        req.ActionedBy = ownerId;
+        await clanRepository.UpdateRequest(req, ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> DenyRequest(int ownerId, int requestId, CancellationToken ct = default)
+    {
+        var clan = await clanRepository.GetByOwner(ownerId, ct);
+        if (clan == null) return Result.Failure("You are not an owner of any clan");
+        var req = await clanRepository.GetRequest(requestId, ct);
+        if (req == null || req.ClanId != clan.Id) return Result.Failure("Request not found");
+        if (req.Status != ClanJoinRequestStatus.Pending) return Result.Failure("Request is not pending");
+        req.Status = ClanJoinRequestStatus.Denied;
+        req.UpdatedAt = DateTime.UtcNow;
+        req.ActionedBy = ownerId;
+        await clanRepository.UpdateRequest(req, ct);
         return Result.Success();
     }
 }
