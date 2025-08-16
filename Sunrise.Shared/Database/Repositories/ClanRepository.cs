@@ -131,13 +131,14 @@ public class ClanRepository(SunriseDbContext dbContext)
                 SELECT c.Id AS ClanId, c.Name, c.Tag, c.OwnerId,
                        COUNT(u.Id) AS MemberCount,
                        {orderExpr} AS Value,
+                       COALESCE(AVG(s.Accuracy),0) AS AvgAcc,
+                       COALESCE(SUM(s.PlayCount),0) AS PlayCount,
                        RANK() OVER (ORDER BY {orderExpr} DESC) AS `Rank`
                 FROM clan c
                 LEFT JOIN user u ON u.ClanId = c.Id
                 LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {{0}}
                 GROUP BY c.Id
             ) t
-            WHERE t.Value > 0
             ORDER BY t.Rank ASC
             LIMIT {{1}} OFFSET {{2}}";
 
@@ -162,6 +163,8 @@ public class ClanRepository(SunriseDbContext dbContext)
                 OwnerId = reader.GetInt32(reader.GetOrdinal("OwnerId")),
                 MemberCount = reader.GetInt32(reader.GetOrdinal("MemberCount")),
                 Value = reader.GetDouble(reader.GetOrdinal("Value")),
+                AvgAcc = reader.IsDBNull(reader.GetOrdinal("AvgAcc")) ? 0 : reader.GetDouble(reader.GetOrdinal("AvgAcc")),
+                PlayCount = reader.IsDBNull(reader.GetOrdinal("PlayCount")) ? 0 : reader.GetInt64(reader.GetOrdinal("PlayCount")),
                 Rank = reader.GetInt32(reader.GetOrdinal("Rank"))
             });
         }
