@@ -187,7 +187,12 @@ public class UserRepository(
             .CountAsync(cancellationToken: ct);
     }
 
-    
+    public async Task<List<User>> GetUsersByClanId(int clanId, CancellationToken ct = default)
+    {
+        return await dbContext.Users
+            .Where(u => u.ClanId == clanId)
+            .ToListAsync(cancellationToken: ct);
+    }
 
     public async Task<Result> UpdateUserUsername(User user, string oldUsername, string newUsername, int? updatedById = null, string? userIp = null)
     {

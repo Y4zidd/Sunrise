@@ -11,8 +11,11 @@ public class HelpCommand : IChatCommand
 {
     public Task Handle(Session session, ChatChannel? channel, string[]? args)
     {
-        var message = $"Available commands: {Configuration.BotPrefix}" + string.Join($", {Configuration.BotPrefix}",
-            ChatCommandRepository.GetAvailableCommands(session));
+        var available = channel == null || channel.Name == Configuration.BotUsername
+            ? ChatCommandRepository.GetAvailableCommandsForPm(session)
+            : ChatCommandRepository.GetAvailableCommands(session);
+
+        var message = $"Available commands: {Configuration.BotPrefix}" + string.Join($", {Configuration.BotPrefix}", available);
 
         ChatCommandRepository.SendMessage(session, message);
 

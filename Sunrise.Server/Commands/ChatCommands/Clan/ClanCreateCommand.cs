@@ -32,6 +32,6 @@ public class ClanCreateCommand : IChatCommand
             return;
         }
 
-        ChatCommandRepository.SendMessage(session, $"Clan created: [{result.Value.Tag}] {result.Value.Name}");
+        ChatCommandRepository.SendMessage(session, $"[{result.Value.Tag}] {result.Value.Name} founded.");
     }
 }
