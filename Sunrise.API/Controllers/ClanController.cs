@@ -30,14 +30,25 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         // Members are optional; frontend can handle empty lists
         var members = await clanRepository.GetMembers(id, ct);
         var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
-        var rank = useEf
+        // Compute all clan ranks for different metrics
+        var rankTotalPp = useEf
             ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.TotalPP, mode, id, ct)
             : await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
+        var rankAveragePp = useEf
+            ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.AveragePP, mode, id, ct)
+            : await clanRepository.GetClanRank(ClanLeaderboardMetric.AveragePP, mode, id, ct);
+        var rankRankedScore = useEf
+            ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.RankedScore, mode, id, ct)
+            : await clanRepository.GetClanRank(ClanLeaderboardMetric.RankedScore, mode, id, ct);
+        var rankAccuracy = useEf
+            ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.Accuracy, mode, id, ct)
+            : await clanRepository.GetClanRank(ClanLeaderboardMetric.Accuracy, mode, id, ct);
         var statsAgg = useEf
             ? await clanRepository.GetClanStatsEf(mode, id, ct)
             : await clanRepository.GetClanStats(mode, id, ct);
-        // Always return aggregated grades so UI can display grade boxes
-        var grades = await clanRepository.GetClanGradesEf(mode, id, ct);
+
+        // Grades aggregation available only with EF path for now
+        var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (XH: 0, X: 0, SH: 0, S: 0, A: 0);
 
         return Ok(new
         {
@@ -62,13 +73,17 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
             ownerLastActive = owner?.LastOnlineTime,
-            rank,
+            // return each rank metric explicitly
+            rankTotalPp,
+            rankAveragePp,
+            rankRankedScore,
+            rankAccuracy,
             totalPp = statsAgg.TotalPp,
             averagePp = statsAgg.AveragePp,
             rankedScore = statsAgg.RankedScore,
             accuracy = statsAgg.Accuracy,
             // aggregated grades for clan members
-            grades = new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A }
+            grades = useEf ? new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A } : null
         });
     }
     
