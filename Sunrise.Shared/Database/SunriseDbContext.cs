@@ -3,6 +3,7 @@ using Sunrise.Shared.Application;
 using Sunrise.Shared.Database.Models;
 using Sunrise.Shared.Database.Models.Beatmap;
 using Sunrise.Shared.Database.Models.Events;
+using Sunrise.Shared.Database.Models.Clan;
 using Sunrise.Shared.Database.Models.Users;
 
 namespace Sunrise.Shared.Database;
@@ -27,6 +28,7 @@ public class SunriseDbContext : DbContext
     public DbSet<UserStatsSnapshot> UserStatsSnapshot { get; set; }
     public DbSet<UserFile> UserFiles { get; set; }
     public DbSet<UserInventoryItem> UserInventoryItem { get; set; }
+    public DbSet<UserCustomBadge> UserCustomBadges { get; set; }
 
 
     public DbSet<Medal> Medals { get; set; }
@@ -40,6 +42,8 @@ public class SunriseDbContext : DbContext
 
     public DbSet<BeatmapHype> BeatmapHypes { get; set; }
     public DbSet<CustomBeatmapStatus> CustomBeatmapStatuses { get; set; }
+
+    public DbSet<Clan> Clans { get; set; }
 
 
 
@@ -64,6 +68,10 @@ public class SunriseDbContext : DbContext
             .WithMany(u => u.UserReceivedRelationships)
             .HasForeignKey(ur => ur.TargetId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserCustomBadge>()
+            .HasIndex(b => new { b.UserId, b.Name })
+            .IsUnique();
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

@@ -85,7 +85,7 @@ public class UserModerationService(
             if (user == null)
                 return;
 
-            if (user.Privilege >= UserPrivilege.Admin)
+            if (user.Privilege.HasFlag(UserPrivilege.Admin) || user.Privilege.HasFlag(UserPrivilege.Developer))
                 return;
 
             user.AccountStatus = UserAccountStatus.Restricted;

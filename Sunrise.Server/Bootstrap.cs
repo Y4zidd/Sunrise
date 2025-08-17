@@ -225,6 +225,7 @@ public static class Bootstrap
         builder.Services.AddScoped<UserFileService>();
 
         builder.Services.AddScoped<UserGradesService>();
+        builder.Services.AddScoped<UserCustomBadgeService>();
 
         builder.Services.AddScoped<BeatmapHypeService>();
         builder.Services.AddScoped<CustomBeatmapStatusService>();
@@ -249,6 +250,8 @@ public static class Bootstrap
 
         builder.Services.AddScoped<ScoreService>();
         builder.Services.AddScoped<UserService>();
+        builder.Services.AddScoped<ClanService>();
+        builder.Services.AddScoped<ClanRepository>();
 
         builder.Services.AddScoped<Services.AuthService>();
 

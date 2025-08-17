@@ -44,7 +44,7 @@ public class RestrictCommand : IChatCommand
             return;
         }
 
-        if (user.Privilege >= UserPrivilege.Admin)
+        if (user.Privilege.HasFlag(UserPrivilege.Admin) || user.Privilege.HasFlag(UserPrivilege.Developer))
         {
             ChatCommandRepository.SendMessage(session, "You cannot restrict this user due to their privilege level.");
             return;

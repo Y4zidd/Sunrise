@@ -35,6 +35,7 @@ public class UserResponse
         SilencedUntil = user.SilencedUntil > DateTime.UtcNow ? user.SilencedUntil : null!;
         DefaultGameMode = user.DefaultGameMode;
         Badges = UserService.GetUserBadges(user);
+        CustomBadges = ServicesProviderHolder.GetRequiredService<DatabaseService>().Users.CustomBadges.GetBadges(user.Id).Result;
     }
 
     [JsonPropertyName("user_id")]
@@ -80,4 +81,7 @@ public class UserResponse
 
     [JsonPropertyName("user_status")]
     public string UserStatus { get; set; }
+
+    [JsonPropertyName("custom_badges")]
+    public List<string> CustomBadges { get; set; } = new();
 }

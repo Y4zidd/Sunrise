@@ -3,20 +3,19 @@ using Sunrise.Server.Repositories;
 using Sunrise.Shared.Application;
 using Sunrise.Shared.Database;
 using Sunrise.Shared.Enums.Users;
-using Sunrise.Shared.Extensions.Users;
 using Sunrise.Shared.Objects;
 using Sunrise.Shared.Objects.Sessions;
 
-namespace Sunrise.Server.Commands.ChatCommands.Moderation;
+namespace Sunrise.Server.Commands.ChatCommands.Development;
 
-[ChatCommand("country", requiredPrivileges: UserPrivilege.Admin)]
-public class CountryCommand : IChatCommand
+[ChatCommand("delbadge", requiredPrivileges: UserPrivilege.Developer)]
+public class RemoveCustomBadgeCommand : IChatCommand
 {
     public async Task Handle(Session session, ChatChannel? channel, string[]? args)
     {
         if (args == null || args.Length < 2)
         {
-            ChatCommandRepository.SendMessage(session, $"Usage: {Configuration.BotPrefix}country <user id> <\"new country\">. Check Alpha-2 codes of all countries here: https://www.iban.com/country-codes.\nExample: !country 1010 US");
+            ChatCommandRepository.SendMessage(session, $"Usage: {Configuration.BotPrefix}delbadge <user id> <badge1> [badge2] [badge3] ...");
             return;
         }
 
@@ -26,9 +25,10 @@ public class CountryCommand : IChatCommand
             return;
         }
 
-        if (!Enum.TryParse<CountryCode>(args[1], out var newCountry))
+        var badges = args[1..].Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+        if (badges.Length == 0)
         {
-            ChatCommandRepository.SendMessage(session, "Invalid country code.");
+            ChatCommandRepository.SendMessage(session, "No badges provided.");
             return;
         }
 
@@ -36,20 +36,21 @@ public class CountryCommand : IChatCommand
         var database = scope.ServiceProvider.GetRequiredService<DatabaseService>();
 
         var user = await database.Users.GetUser(userId);
-
         if (user == null)
         {
             ChatCommandRepository.SendMessage(session, "User not found.");
             return;
         }
 
-        if (user.Privilege.HasFlag(UserPrivilege.Admin) || user.Privilege.HasFlag(UserPrivilege.Developer))
+        var result = await database.Users.CustomBadges.RemoveBadges(userId, badges);
+        if (result.IsFailure)
         {
-            ChatCommandRepository.SendMessage(session, "You cannot change their country due to their privilege level.");
+            ChatCommandRepository.SendMessage(session, result.Error);
             return;
         }
-        
-        await database.Users.UpdateUserCountry(user, user.Country, newCountry, session.UserId);
-        ChatCommandRepository.SendMessage(session, "Users country has been updated.");
+
+        ChatCommandRepository.SendMessage(session, $"Removed badges from {user.Username} ({user.Id}): {string.Join(", ", badges)}");
     }
 }
+
+
