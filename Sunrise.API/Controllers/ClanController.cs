@@ -30,10 +30,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         // Members are optional; frontend can handle empty lists
         var members = await clanRepository.GetMembers(id, ct);
         var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
-<<<<<<< HEAD
         // Compute all clan ranks for different metrics
-=======
->>>>>>> bef4f18 (feat(clan): tambahkan perhitungan peringkat klan untuk metrik TotalPP, AveragePP, RankedScore, dan Accuracy; perbarui respons API untuk menyertakan semua peringkat tersebut.)
         var rankTotalPp = useEf
             ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.TotalPP, mode, id, ct)
             : await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
@@ -46,21 +43,12 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var rankAccuracy = useEf
             ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.Accuracy, mode, id, ct)
             : await clanRepository.GetClanRank(ClanLeaderboardMetric.Accuracy, mode, id, ct);
-<<<<<<< HEAD
         var statsAgg = useEf
             ? await clanRepository.GetClanStatsEf(mode, id, ct)
             : await clanRepository.GetClanStats(mode, id, ct);
 
         // Grades aggregation available only with EF path for now
         var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (XH: 0, X: 0, SH: 0, S: 0, A: 0);
-=======
-
-        var statsAgg = useEf
-            ? await clanRepository.GetClanStatsEf(mode, id, ct)
-            : await clanRepository.GetClanStats(mode, id, ct);
-        // Always compute grades to show in UI
-        var grades = await clanRepository.GetClanGradesEf(mode, id, ct);
->>>>>>> bef4f18 (feat(clan): tambahkan perhitungan peringkat klan untuk metrik TotalPP, AveragePP, RankedScore, dan Accuracy; perbarui respons API untuk menyertakan semua peringkat tersebut.)
 
         return Ok(new
         {
@@ -85,11 +73,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
             ownerLastActive = owner?.LastOnlineTime,
-<<<<<<< HEAD
             // return each rank metric explicitly
-=======
-            rank = rankTotalPp,
->>>>>>> bef4f18 (feat(clan): tambahkan perhitungan peringkat klan untuk metrik TotalPP, AveragePP, RankedScore, dan Accuracy; perbarui respons API untuk menyertakan semua peringkat tersebut.)
             rankTotalPp,
             rankAveragePp,
             rankRankedScore,
