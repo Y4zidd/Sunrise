@@ -42,14 +42,22 @@ public class RemoveCustomBadgeCommand : IChatCommand
             return;
         }
 
-        var result = await database.Users.CustomBadges.RemoveBadges(userId, badges);
+        var existing = await database.Users.CustomBadges.GetBadges(userId);
+        var toRemove = badges.Where(b => existing.Contains(b, StringComparer.OrdinalIgnoreCase)).ToArray();
+        if (toRemove.Length == 0)
+        {
+            ChatCommandRepository.SendMessage(session, $"No matching custom badges found on {user.Username} ({user.Id}).");
+            return;
+        }
+
+        var result = await database.Users.CustomBadges.RemoveBadges(userId, toRemove);
         if (result.IsFailure)
         {
             ChatCommandRepository.SendMessage(session, result.Error);
             return;
         }
 
-        ChatCommandRepository.SendMessage(session, $"Removed badges from {user.Username} ({user.Id}): {string.Join(", ", badges)}");
+        ChatCommandRepository.SendMessage(session, $"Removed badges from {user.Username} ({user.Id}): {string.Join(", ", toRemove)}");
     }
 }
 

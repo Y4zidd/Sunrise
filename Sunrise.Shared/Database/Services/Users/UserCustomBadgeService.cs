@@ -14,6 +14,16 @@ public class UserCustomBadgeService(SunriseDbContext dbContext)
             .ToListAsync(ct);
     }
 
+    public record DetailedBadge(string Name, string? ColorHex, string? Icon, string? IconType);
+
+    public async Task<List<DetailedBadge>> GetBadgesDetailed(int userId, CancellationToken ct = default)
+    {
+        return await dbContext.UserCustomBadges
+            .Where(x => x.UserId == userId)
+            .Select(x => new DetailedBadge(x.Name, x.ColorHex, x.Icon, x.IconType))
+            .ToListAsync(ct);
+    }
+
     public async Task<Result> AddBadges(int userId, IEnumerable<string> badges, CancellationToken ct = default)
     {
         var normalized = badges
@@ -54,6 +64,43 @@ public class UserCustomBadgeService(SunriseDbContext dbContext)
             .ToListAsync(ct);
 
         dbContext.UserCustomBadges.RemoveRange(toDelete);
+        await dbContext.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    private static bool IsValidHexColor(string color)
+    {
+        if (string.IsNullOrWhiteSpace(color)) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(color, "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$");
+    }
+
+    private static bool IsValidIcon(string icon)
+    {
+        if (string.IsNullOrWhiteSpace(icon)) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(icon, "^[a-z0-9-]{1,32}$");
+    }
+
+    public async Task<Result> SetBadgeColor(int userId, string name, string colorHex, CancellationToken ct = default)
+    {
+        if (!IsValidHexColor(colorHex)) return Result.Failure("Invalid color hex; use #RRGGBB or #RGB");
+        var lowered = name.Trim().ToLower();
+        var badge = await dbContext.UserCustomBadges
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.Name.ToLower() == lowered, ct);
+        if (badge == null) return Result.Failure("Badge not found");
+        badge.ColorHex = colorHex;
+        await dbContext.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> SetBadgeIcon(int userId, string name, string icon, string? iconType = null, CancellationToken ct = default)
+    {
+        // longgar: izinkan kebab-case lucide, emoji unicode, atau URL; FE yang menerjemahkan
+        var lowered = name.Trim().ToLower();
+        var badge = await dbContext.UserCustomBadges
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.Name.ToLower() == lowered, ct);
+        if (badge == null) return Result.Failure("Badge not found");
+        badge.Icon = icon;
+        if (!string.IsNullOrWhiteSpace(iconType)) badge.IconType = iconType;
         await dbContext.SaveChangesAsync(ct);
         return Result.Success();
     }

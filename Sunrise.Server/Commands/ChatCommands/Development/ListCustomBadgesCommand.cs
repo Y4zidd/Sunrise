@@ -29,9 +29,26 @@ public class ListCustomBadgesCommand : IChatCommand
             return;
         }
 
-        var badges = await database.Users.CustomBadges.GetBadges(userId);
-        var list = badges.Count == 0 ? "(none)" : string.Join(", ", badges);
-        ChatCommandRepository.SendMessage(session, $"Custom badges of {user.Username} ({user.Id}): {list}");
+        // built-in badges (berdasarkan privilege)
+        var builtin = new List<string>();
+        if (user.Privilege.HasFlag(UserPrivilege.Developer)) builtin.Add("Developer");
+        if (user.Privilege.HasFlag(UserPrivilege.Admin)) builtin.Add("Admin");
+        if (user.Privilege.HasFlag(UserPrivilege.Bat)) builtin.Add("BAT");
+        if (user.IsUserSunriseBot()) builtin.Add("Bot");
+        if (user.Privilege.HasFlag(UserPrivilege.Supporter)) builtin.Add("Supporter");
+
+        var custom = await database.Users.CustomBadges.GetBadgesDetailed(userId);
+
+        var builtinList = builtin.Count == 0 ? "(none)" : string.Join(", ", builtin);
+        var customList = custom.Count == 0
+            ? "(none)"
+            : string.Join(
+                ", ",
+                custom.Select(c => $"{c.Name}{(string.IsNullOrWhiteSpace(c.ColorHex) ? "" : $"[{c.ColorHex}]")}{(string.IsNullOrWhiteSpace(c.Icon) ? "" : $"<{c.Icon}>")}")
+            );
+
+        ChatCommandRepository.SendMessage(session, $"Builtin badges of {user.Username} ({user.Id}): {builtinList}");
+        ChatCommandRepository.SendMessage(session, $"Custom badges of {user.Username} ({user.Id}): {customList}");
     }
 }
 
