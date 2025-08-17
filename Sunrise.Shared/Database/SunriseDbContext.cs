@@ -27,6 +27,7 @@ public class SunriseDbContext : DbContext
     public DbSet<UserStatsSnapshot> UserStatsSnapshot { get; set; }
     public DbSet<UserFile> UserFiles { get; set; }
     public DbSet<UserInventoryItem> UserInventoryItem { get; set; }
+    public DbSet<UserCustomBadge> UserCustomBadges { get; set; }
 
 
     public DbSet<Medal> Medals { get; set; }
@@ -64,6 +65,10 @@ public class SunriseDbContext : DbContext
             .WithMany(u => u.UserReceivedRelationships)
             .HasForeignKey(ur => ur.TargetId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserCustomBadge>()
+            .HasIndex(b => new { b.UserId, b.Name })
+            .IsUnique();
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

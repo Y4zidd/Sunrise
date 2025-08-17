@@ -1,6 +1,9 @@
 using System.Text.Json.Serialization;
 using Sunrise.API.Enums;
 using Sunrise.API.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Sunrise.Shared.Application;
+using Sunrise.Shared.Database;
 using Sunrise.Shared.Database.Models.Users;
 using Sunrise.Shared.Enums.Beatmaps;
 using Sunrise.Shared.Enums.Users;
@@ -35,6 +38,11 @@ public class UserResponse
         SilencedUntil = user.SilencedUntil > DateTime.UtcNow ? user.SilencedUntil : null!;
         DefaultGameMode = user.DefaultGameMode;
         Badges = UserService.GetUserBadges(user);
+        using var scope = ServicesProviderHolder.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DatabaseService>();
+        CustomBadges = db.Users.CustomBadges.GetBadges(user.Id).Result;
+        CustomBadgesDetailed = db.Users.CustomBadges.GetBadgesDetailed(user.Id).Result
+            .Select(b => new UserCustomBadgeResponse(b.Name, b.ColorHex, b.Icon, b.IconType)).ToList();
     }
 
     [JsonPropertyName("user_id")]
@@ -80,4 +88,12 @@ public class UserResponse
 
     [JsonPropertyName("user_status")]
     public string UserStatus { get; set; }
+
+    [JsonPropertyName("custom_badges")]
+    public List<string> CustomBadges { get; set; } = new();
+
+    [JsonPropertyName("custom_badges_detailed")]
+    public List<UserCustomBadgeResponse> CustomBadgesDetailed { get; set; } = new();
 }
+
+public record UserCustomBadgeResponse(string Name, string? ColorHex, string? Icon, string? IconType);

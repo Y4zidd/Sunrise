@@ -26,7 +26,8 @@ public class UserRepository(
     UserFileService userFileService,
     UserGradesService userGradesService,
     UserInventoryItemService userInventoryItemService,
-    UserStatsRanksService userStatsRanksService)
+    UserStatsRanksService userStatsRanksService,
+    UserCustomBadgeService userCustomBadgeService)
 {
     private readonly ILogger _logger = logger;
 
@@ -40,6 +41,7 @@ public class UserRepository(
     public UserMetadataService Metadata { get; } = userMetadataService;
     public UserInventoryItemService Inventory { get; } = userInventoryItemService;
     public UserStatsRanksService Ranks { get; } = userStatsRanksService;
+    public UserCustomBadgeService CustomBadges { get; } = userCustomBadgeService;
 
     public async Task<Result> AddUser(User user)
     {
@@ -184,6 +186,8 @@ public class UserRepository(
             .FilterValidUsers()
             .CountAsync(cancellationToken: ct);
     }
+
+    
 
     public async Task<Result> UpdateUserUsername(User user, string oldUsername, string newUsername, int? updatedById = null, string? userIp = null)
     {
