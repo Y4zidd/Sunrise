@@ -37,15 +37,10 @@ public class ListCustomBadgesCommand : IChatCommand
         if (user.IsUserSunriseBot()) builtin.Add("Bot");
         if (user.Privilege.HasFlag(UserPrivilege.Supporter)) builtin.Add("Supporter");
 
-        var custom = await database.Users.CustomBadges.GetBadgesDetailed(userId);
+        var custom = await database.Users.CustomBadges.GetBadges(userId);
 
         var builtinList = builtin.Count == 0 ? "(none)" : string.Join(", ", builtin);
-        var customList = custom.Count == 0
-            ? "(none)"
-            : string.Join(
-                ", ",
-                custom.Select(c => $"{c.Name}{(string.IsNullOrWhiteSpace(c.ColorHex) ? "" : $"[{c.ColorHex}]")}{(string.IsNullOrWhiteSpace(c.Icon) ? "" : $"<{c.Icon}>")}")
-            );
+        var customList = custom.Count == 0 ? "(none)" : string.Join(", ", custom);
 
         ChatCommandRepository.SendMessage(session, $"Builtin badges of {user.Username} ({user.Id}): {builtinList}");
         ChatCommandRepository.SendMessage(session, $"Custom badges of {user.Username} ({user.Id}): {customList}");
