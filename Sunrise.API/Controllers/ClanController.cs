@@ -48,6 +48,22 @@ public class ClanController(DatabaseService database, ClanService clanService, C
 
         var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (XH: 0, X: 0, SH: 0, S: 0, A: 0);
 
+        bool HasClanAsset(string subFolder)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(Shared.Application.Configuration.DataPath, $"Files/Clan/{subFolder}");
+                if (!System.IO.Directory.Exists(dir)) return false;
+                return System.IO.Directory
+                    .EnumerateFiles(dir, $"{id}.*", System.IO.SearchOption.TopDirectoryOnly)
+                    .Any();
+            }
+            catch { return false; }
+        }
+
+        var hasAvatar = HasClanAsset("Avatars");
+        var hasBanner = HasClanAsset("Banners");
+
         return Ok(new
         {
             id = clan.Id,
@@ -71,6 +87,7 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
             ownerLastActive = owner?.LastOnlineTime,
+            // Always expose URLs so settings page can request defaults; other pages add &default=false
             avatarUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/avatar/{id}",
             bannerUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/banner/{id}",
             rankTotalPp,
