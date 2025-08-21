@@ -28,6 +28,22 @@ public class AssetService(DatabaseService database)
         return replay;
     }
 
+    private static readonly string[] SupportedImageExtensions = [
+        ".png", ".jpg", ".jpeg", ".gif", ".webp"
+    ];
+
+    private static string? FindClanAssetPath(string subFolder, int clanId)
+    {
+        var directory = Path.Combine(DataPath, $"Files/Clan/{subFolder}");
+        if (!Directory.Exists(directory)) return null;
+
+        var pattern = clanId + ".*";
+        var candidate = Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
+            .FirstOrDefault(p => SupportedImageExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase));
+
+        return candidate;
+    }
+
     public string[] GetSeasonalBackgrounds()
     {
         var basePath = Path.Combine(DataPath, "Files/SeasonalBackgrounds");
@@ -88,6 +104,22 @@ public class AssetService(DatabaseService database)
             return Result.Failure<byte[]>("Banner not found");
 
         return Result.Success(banner);
+    }
+
+    // Clan assets (files stored at Data/Files/Clan/*) — fallback handled at caller/UI
+    public async Task<byte[]?> GetClanAvatar(int clanId, CancellationToken ct = default)
+    {
+        var existing = FindClanAssetPath("Avatars", clanId);
+        if (existing == null) return null;
+        return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(existing, ct);
+    }
+
+    public async Task<byte[]?> GetClanBanner(int clanId, CancellationToken ct = default)
+    {
+        // Return explicit file if present, otherwise default banner
+        var existing = FindClanAssetPath("Banners", clanId);
+        var path = existing ?? Path.Combine(DataPath, "Files/Clan/Banners/Default.png");
+        return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(path, ct);
     }
 
     public async Task<byte[]?> GetEventBanner(CancellationToken ct = default)

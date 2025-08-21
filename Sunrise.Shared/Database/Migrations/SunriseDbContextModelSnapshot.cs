@@ -112,6 +112,44 @@ namespace Sunrise.Shared.Database.Migrations
                     b.ToTable("clan");
                 });
 
+            modelBuilder.Entity("Sunrise.Shared.Database.Models.Clan.ClanJoinRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("ActionedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClanId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("RequestedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClanId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("clan_join_request");
+                });
+
             modelBuilder.Entity("Sunrise.Shared.Database.Models.Events.EventBeatmap", b =>
                 {
                     b.Property<int>("Id")

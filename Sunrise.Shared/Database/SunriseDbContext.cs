@@ -45,6 +45,8 @@ public class SunriseDbContext : DbContext
 
     public DbSet<Clan> Clans { get; set; }
 
+    public DbSet<ClanJoinRequest> ClanJoinRequests { get; set; }
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -8,6 +8,8 @@ public static class RequestType
     public const string GetBanchoAvatar = "{id:int}";
     public const string GetAvatar = "avatar/{id:int}";
     public const string GetBanner = "banner/{id:int}";
+    public const string GetClanAvatar = "clan/avatar/{id:int}";
+    public const string GetClanBanner = "clan/banner/{id:int}";
     public const string GetScreenshot = "ss/{id:int}.jpg";
     public const string GetMedalImage = "medals/client/{medalId:int}.png";
     public const string GetMedalHighImage = "medals/client/{medalId:int}@2x.png";

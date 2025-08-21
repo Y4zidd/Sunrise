@@ -46,6 +46,22 @@ public class AssetsController(BanchoService banchoService, AssetService assetSer
         return new FileContentResult(getBannerResult.Value, $"image/{ImageTools.GetImageType(getBannerResult.Value) ?? "png"}");
     }
 
+    [HttpGet(RequestType.GetClanAvatar)]
+    public async Task<IActionResult> GetClanAvatar(int id, CancellationToken ct = default)
+    {
+        var data = await assetService.GetClanAvatar(id, ct);
+        if (data == null) return NotFound();
+        return new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+    }
+
+    [HttpGet(RequestType.GetClanBanner)]
+    public async Task<IActionResult> GetClanBanner(int id, CancellationToken ct = default)
+    {
+        var data = await assetService.GetClanBanner(id, ct);
+        if (data == null) return NotFound();
+        return new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+    }
+
     [HttpGet]
     [Route(RequestType.GetScreenshot)]
     public async Task<IActionResult> GetScreenshot(int id, CancellationToken ct = default)
