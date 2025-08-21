@@ -30,6 +30,8 @@ public class UserResponse
         UserStatus = session != null ? session.Attributes.Status.ToText() : "Offline";
         AvatarUrl = user.AvatarUrl;
         BannerUrl = user.BannerUrl;
+        ClanId = user.ClanId;
+        ClanPriv = user.ClanPriv;
         LastOnlineTime = session != null ? session.Attributes.LastPingRequest : user.LastOnlineTime;
         IsRestricted = user.IsRestricted();
         SilencedUntil = user.SilencedUntil > DateTime.UtcNow ? user.SilencedUntil : null!;
@@ -80,4 +82,10 @@ public class UserResponse
 
     [JsonPropertyName("user_status")]
     public string UserStatus { get; set; }
+
+    [JsonPropertyName("clan_id")]
+    public int ClanId { get; set; }
+
+    [JsonPropertyName("clan_priv")]
+    public byte ClanPriv { get; set; }
 }

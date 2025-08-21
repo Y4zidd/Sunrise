@@ -106,20 +106,33 @@ public class AssetService(DatabaseService database)
         return Result.Success(banner);
     }
 
-    // Clan assets (files stored at Data/Files/Clan/*) — fallback handled at caller/UI
-    public async Task<byte[]?> GetClanAvatar(int clanId, CancellationToken ct = default)
+    // Clan assets (files stored at Data/Files/Clan/*)
+    public async Task<byte[]?> GetClanAvatar(int clanId, bool toFallback = true, CancellationToken ct = default)
     {
         var existing = FindClanAssetPath("Avatars", clanId);
-        if (existing == null) return null;
+        if (existing == null)
+        {
+            if (!toFallback) return null;
+            var fallback = Path.Combine(DataPath, "Files/Clan/Avatars/Default.png");
+            if (!File.Exists(fallback)) fallback = Path.Combine(DataPath, "Files/Clan/Avatars/Default.jpg");
+            if (!File.Exists(fallback)) return null;
+            return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(fallback, ct);
+        }
         return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(existing, ct);
     }
 
-    public async Task<byte[]?> GetClanBanner(int clanId, CancellationToken ct = default)
+    public async Task<byte[]?> GetClanBanner(int clanId, bool toFallback = true, CancellationToken ct = default)
     {
-        // Return explicit file if present, otherwise default banner
         var existing = FindClanAssetPath("Banners", clanId);
-        var path = existing ?? Path.Combine(DataPath, "Files/Clan/Banners/Default.png");
-        return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(path, ct);
+        if (existing == null)
+        {
+            if (!toFallback) return null;
+            var fallback = Path.Combine(DataPath, "Files/Clan/Banners/Default.png");
+            if (!File.Exists(fallback)) fallback = Path.Combine(DataPath, "Files/Clan/Banners/Default.jpg");
+            if (!File.Exists(fallback)) return null;
+            return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(fallback, ct);
+        }
+        return await Shared.Repositories.LocalStorageRepository.ReadFileAsync(existing, ct);
     }
 
     public async Task<byte[]?> GetEventBanner(CancellationToken ct = default)
