@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Sunrise.API.Extensions;
 using Sunrise.API.Serializable.Response;
+using Sunrise.API.Services;
 using Sunrise.Shared.Attributes;
 using Sunrise.Shared.Database;
 using Sunrise.Shared.Services;
@@ -17,7 +18,7 @@ namespace Sunrise.API.Controllers;
 [Subdomain("api")]
 [ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-public class ClanController(DatabaseService database, ClanService clanService, ClanRepository clanRepository) : ControllerBase
+public class ClanController(DatabaseService database, ClanService clanService, ClanRepository clanRepository, AssetService assetService) : ControllerBase
 {
     [HttpGet("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -27,10 +28,8 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var clan = await clanRepository.GetById(id, ct);
         if (clan == null) return NotFound(new ErrorResponse("Clan not found"));
 
-        // Members are optional; frontend can handle empty lists
         var members = await clanRepository.GetMembers(id, ct);
         var owner = await database.Users.GetUser(id: clan.OwnerId, ct: ct);
-        // Compute all clan ranks for different metrics
         var rankTotalPp = useEf
             ? await clanRepository.GetClanRankEf(ClanLeaderboardMetric.TotalPP, mode, id, ct)
             : await clanRepository.GetClanRank(ClanLeaderboardMetric.TotalPP, mode, id, ct);
@@ -47,7 +46,6 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             ? await clanRepository.GetClanStatsEf(mode, id, ct)
             : await clanRepository.GetClanStats(mode, id, ct);
 
-        // Grades aggregation available only with EF path for now
         var grades = useEf ? await clanRepository.GetClanGradesEf(mode, id, ct) : (XH: 0, X: 0, SH: 0, S: 0, A: 0);
 
         return Ok(new
@@ -73,7 +71,8 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             }),
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
             ownerLastActive = owner?.LastOnlineTime,
-            // return each rank metric explicitly
+            avatarUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/avatar/{id}",
+            bannerUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/banner/{id}",
             rankTotalPp,
             rankAveragePp,
             rankRankedScore,
@@ -82,7 +81,6 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             averagePp = statsAgg.AveragePp,
             rankedScore = statsAgg.RankedScore,
             accuracy = statsAgg.Accuracy,
-            // aggregated grades for clan members
             grades = useEf ? new { xh = grades.XH, x = grades.X, sh = grades.SH, s = grades.S, a = grades.A } : null
         });
     }
@@ -100,8 +98,6 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         return Ok(ClanResponse.FromEntity(result.Value));
     }
 
-    // Join via approval on web only; direct join disabled.
-
     [HttpPost("leave")]
     [ProducesResponseType(typeof(OperationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -115,7 +111,6 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         return Ok(new OperationResponse("Left clan"));
     }
 
-    // Request join (web approval flow)
     public record ClanRequestJoin(int ClanId);
     [HttpPost("request")]
     [ProducesResponseType(typeof(OperationResponse), StatusCodes.Status200OK)]
@@ -128,6 +123,34 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var res = await clanService.RequestJoin(user.Id, body.ClanId, ct);
         if (res.IsFailure) return BadRequest(new ErrorResponse(res.Error));
         return Ok(new OperationResponse("Request submitted"));
+    }
+
+    [HttpGet("{id:int}/request/status")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetRequestStatus([FromRoute] int id, CancellationToken ct = default)
+    {
+        var user = HttpContext.GetCurrentUser();
+        if (user == null) return Unauthorized(new ErrorResponse("Unauthorized"));
+        var has = await clanRepository.HasPendingRequest(id, user.Id, ct);
+        return Ok(new { pending = has });
+    }
+
+    [HttpGet("{id:int}/requests")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetRequests([FromRoute] int id, [FromQuery] ClanJoinRequestStatus status = ClanJoinRequestStatus.Pending, [FromQuery] int page = 0, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+    {
+        var user = HttpContext.GetCurrentUser();
+        if (user == null) return Unauthorized(new ErrorResponse("Unauthorized"));
+
+        var clan = await clanRepository.GetByOwner(user.Id, ct);
+        if (clan == null || clan.Id != id)
+            return Forbid();
+
+        var items = await clanRepository.GetRequests(id, status, page, pageSize, ct);
+        return Ok(new { items, page, pageSize });
     }
 
     public record ClanRevokeJoin(int ClanId);
@@ -170,6 +193,48 @@ public class ClanController(DatabaseService database, ClanService clanService, C
         var res = await clanService.DenyRequest(user.Id, body.RequestId, ct);
         if (res.IsFailure) return BadRequest(new ErrorResponse(res.Error));
         return Ok(new OperationResponse("Request denied"));
+    }
+
+    [HttpPost("{id:int}/upload/avatar")]
+    [ProducesResponseType(typeof(OperationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UploadClanAvatar([FromRoute] int id)
+    {
+        var user = HttpContext.GetCurrentUser();
+        if (user == null) return Unauthorized(new ErrorResponse("Unauthorized"));
+        if (Request.HasFormContentType == false) return BadRequest(new ErrorResponse("Invalid content type"));
+        if (Request.Form.Files.Count == 0) return BadRequest(new ErrorResponse("No files were uploaded"));
+
+        var clan = await clanRepository.GetByOwner(user.Id);
+        if (clan == null || clan.Id != id) return Forbid();
+
+        var file = Request.Form.Files[0];
+        await using var stream = file.OpenReadStream();
+        var (ok, err) = await assetService.SetClanAvatar(id, stream);
+        if (!ok) return BadRequest(new ErrorResponse(err ?? "Failed to set clan avatar"));
+        return Ok(new OperationResponse("Clan avatar updated"));
+    }
+
+    [HttpPost("{id:int}/upload/banner")]
+    [ProducesResponseType(typeof(OperationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UploadClanBanner([FromRoute] int id)
+    {
+        var user = HttpContext.GetCurrentUser();
+        if (user == null) return Unauthorized(new ErrorResponse("Unauthorized"));
+        if (Request.HasFormContentType == false) return BadRequest(new ErrorResponse("Invalid content type"));
+        if (Request.Form.Files.Count == 0) return BadRequest(new ErrorResponse("No files were uploaded"));
+
+        var clan = await clanRepository.GetByOwner(user.Id);
+        if (clan == null || clan.Id != id) return Forbid();
+
+        var file = Request.Form.Files[0];
+        await using var stream = file.OpenReadStream();
+        var (ok, err) = await assetService.SetClanBanner(id, stream);
+        if (!ok) return BadRequest(new ErrorResponse(err ?? "Failed to set clan banner"));
+        return Ok(new OperationResponse("Clan banner updated"));
     }
 
     [HttpGet("leaderboard")]
