@@ -167,7 +167,18 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             return Forbid();
 
         var items = await clanRepository.GetRequests(id, status, page, pageSize, ct);
-        return Ok(new { items, page, pageSize });
+        var safeItems = items.Select(r => new
+        {
+            id = r.Id,
+            userId = r.UserId,
+            clanId = r.ClanId,
+            status = r.Status.ToString(),
+            requestedBy = r.RequestedBy,
+            actionedBy = r.ActionedBy,
+            createdAt = r.CreatedAt,
+            updatedAt = r.UpdatedAt
+        });
+        return Ok(new { items = safeItems, page, pageSize });
     }
 
     public record ClanRevokeJoin(int ClanId);
