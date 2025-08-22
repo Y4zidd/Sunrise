@@ -104,8 +104,16 @@ public class ClanRepository(SunriseDbContext dbContext)
     public async Task<List<ClanJoinRequest>> GetRequests(int clanId, ClanJoinRequestStatus? status, int page, int pageSize, CancellationToken ct = default)
     {
         var q = dbContext.Set<ClanJoinRequest>().Where(r => r.ClanId == clanId);
-        if (status != null) q = q.Where(r => r.Status == status);
-        return await q.OrderByDescending(r => r.CreatedAt).Skip(page * pageSize).Take(pageSize).ToListAsync(ct);
+        if (status.HasValue)
+        {
+            var s = status.Value;
+            q = q.Where(r => r.Status == s);
+        }
+        return await q
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip(page * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
     }
 
     public async Task UpdateRequest(ClanJoinRequest req, CancellationToken ct = default)
