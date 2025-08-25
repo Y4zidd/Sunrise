@@ -49,7 +49,9 @@ public class ClanRepository(SunriseDbContext dbContext)
     }
 
     public async Task<List<User>> GetMembers(int clanId, CancellationToken ct = default)
-        => await dbContext.Set<User>().Where(u => u.ClanId == clanId).ToListAsync(ct);
+        => await dbContext.Set<User>()
+            .Where(u => u.ClanId == clanId && u.AccountStatus != Enums.Users.UserAccountStatus.Restricted)
+            .ToListAsync(ct);
 
     public async Task SetOwner(int clanId, int newOwnerId, CancellationToken ct = default)
     {
@@ -143,7 +145,7 @@ public class ClanRepository(SunriseDbContext dbContext)
                        COALESCE(SUM(s.PlayCount),0) AS PlayCount,
                        RANK() OVER (ORDER BY {orderExpr} DESC) AS `Rank`
                 FROM clan c
-                LEFT JOIN user u ON u.ClanId = c.Id
+                LEFT JOIN user u ON u.ClanId = c.Id AND u.AccountStatus != 1 -- exclude restricted members
                 LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {{0}}
                 GROUP BY c.Id
             ) t
@@ -204,7 +206,7 @@ public class ClanRepository(SunriseDbContext dbContext)
                 SELECT c.Id AS ClanId,
                        RANK() OVER (ORDER BY {orderExpr} DESC) AS `Rank`
                 FROM clan c
-                LEFT JOIN user u ON u.ClanId = c.Id
+                LEFT JOIN user u ON u.ClanId = c.Id AND u.AccountStatus != 1 -- exclude restricted members
                 LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {{0}}
                 GROUP BY c.Id
             ) t
@@ -234,7 +236,7 @@ public class ClanRepository(SunriseDbContext dbContext)
                 COALESCE(SUM(s.RankedScore),0) AS RankedScore,
                 COALESCE(AVG(s.Accuracy),0) AS Accuracy
             FROM clan c
-            LEFT JOIN user u ON u.ClanId = c.Id
+            LEFT JOIN user u ON u.ClanId = c.Id AND u.AccountStatus != 1 -- exclude restricted members
             LEFT JOIN user_stats s ON s.UserId = u.Id AND s.GameMode = {0}
             WHERE c.Id = {1}";
 
@@ -260,7 +262,7 @@ public class ClanRepository(SunriseDbContext dbContext)
     // EF/LINQ variants for experimentation: may be less performant on large datasets
     public async Task<(double TotalPp, double AveragePp, long RankedScore, double Accuracy)> GetClanStatsEf(GameMode mode, int clanId, CancellationToken ct = default)
     {
-        var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId);
+    var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId && u.AccountStatus != Enums.Users.UserAccountStatus.Restricted);
         var statsQuery = dbContext.Set<UserStats>().Where(s => s.GameMode == mode).Join(usersQuery, s => s.UserId, u => u.Id, (s, u) => s);
 
         var totalPp = await statsQuery.SumAsync(s => (double?)s.PerformancePoints, ct) ?? 0d;
@@ -284,6 +286,7 @@ public class ClanRepository(SunriseDbContext dbContext)
 
         // Build aggregation per clan
         var aggregated = await dbContext.Set<User>()
+            .Where(u => u.AccountStatus != Enums.Users.UserAccountStatus.Restricted)
             .GroupJoin(dbContext.Set<UserStats>().Where(s => s.GameMode == mode), u => u.Id, s => s.UserId,
                 (u, stats) => new { u.ClanId, Stats = stats })
             .Where(x => x.ClanId != 0)
@@ -319,7 +322,7 @@ public class ClanRepository(SunriseDbContext dbContext)
 
     public async Task<(int XH, int X, int SH, int S, int A)> GetClanGradesEf(GameMode mode, int clanId, CancellationToken ct = default)
     {
-        var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId);
+    var usersQuery = dbContext.Set<User>().Where(u => u.ClanId == clanId && u.AccountStatus != Enums.Users.UserAccountStatus.Restricted);
         var gradesQuery = dbContext.Set<UserGrades>().Where(g => g.GameMode == mode).Join(usersQuery, g => g.UserId, u => u.Id, (g, u) => g);
 
         var result = await gradesQuery
@@ -340,7 +343,7 @@ public class ClanRepository(SunriseDbContext dbContext)
     public async Task<List<UserStatsSnapshot>> GetMemberSnapshots(GameMode mode, int clanId, CancellationToken ct = default)
     {
         var userIds = await dbContext.Set<User>()
-            .Where(u => u.ClanId == clanId)
+            .Where(u => u.ClanId == clanId && u.AccountStatus != Enums.Users.UserAccountStatus.Restricted)
             .Select(u => u.Id)
             .ToListAsync(ct);
 
