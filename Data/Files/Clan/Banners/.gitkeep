@@ -1,0 +1,2 @@
+# This file ensures the Banners directory is tracked by Git
+# Even though the contents are ignored by .gitignore

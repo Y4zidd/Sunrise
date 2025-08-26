@@ -118,7 +118,9 @@ Data/**/*.osr
 Data/Files/Avatars/*
 Data/Files/Banners/*
 Data/Files/Clan/Avatars/*
+!Data/Files/Clan/Avatars/.gitkeep
 Data/Files/Clan/Banners/*
+!Data/Files/Clan/Banners/.gitkeep
 Data/Files/Replays/*
 Data/Files/Screenshot/*
 Data/Files/SeasonalBackgrounds/*
