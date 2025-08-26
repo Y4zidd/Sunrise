@@ -214,6 +214,48 @@ public class ClanService(ClanRepository clanRepository, DatabaseService database
         await clanRepository.UpdateRequest(req, ct);
         return Result.Success();
     }
+    
+    public async Task<Result<Clan>> EditClan(int ownerId, string? newName, string? newTag, CancellationToken ct = default)
+    {
+        var clan = await clanRepository.GetByOwner(ownerId, ct);
+        if (clan == null) return Result.Failure<Clan>("You are not an owner of any clan");
+
+        var hasChanges = false;
+
+        if (!string.IsNullOrWhiteSpace(newName))
+        {
+            var trimmedName = newName.Trim();
+            if (trimmedName != clan.Name)
+            {
+                clan.Name = trimmedName;
+                hasChanges = true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(newTag))
+        {
+            var trimmedTag = newTag.Trim().ToUpperInvariant();
+            if (trimmedTag.Length is < 2 or > 6)
+                return Result.Failure<Clan>("Tag length must be 2-6 characters");
+                
+            if (trimmedTag != clan.Tag)
+            {
+                var existing = await clanRepository.GetByTag(trimmedTag, ct);
+                if (existing != null && existing.Id != clan.Id)
+                    return Result.Failure<Clan>("Tag already taken");
+                    
+                clan.Tag = trimmedTag;
+                hasChanges = true;
+            }
+        }
+
+        if (!hasChanges)
+            return Result.Failure<Clan>("No changes provided");
+
+        clan.UpdatedAt = DateTime.UtcNow;
+        await database.DbContext.SaveChangesAsync(ct);
+        return Result.Success(clan);
+    }
 }
 
 
