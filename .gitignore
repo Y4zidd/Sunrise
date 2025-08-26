@@ -120,9 +120,8 @@ Data/Files/Avatars/*
 Data/Files/Banners/*
 !Data/Files/Banners/Default.png
 Data/Files/Clan/Avatars/*
-!Data/Files/Clan/Avatars/.gitkeep
+!Data/Files/Clan/Avatars/Default.png
 Data/Files/Clan/Banners/*
-!Data/Files/Clan/Banners/.gitkeep
 !Data/Files/Clan/Banners/Default.png
 Data/Files/Replays/*
 Data/Files/Screenshot/*
