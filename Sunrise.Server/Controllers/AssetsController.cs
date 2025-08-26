@@ -47,19 +47,39 @@ public class AssetsController(BanchoService banchoService, AssetService assetSer
     }
 
     [HttpGet(RequestType.GetClanAvatar)]
-    public async Task<IActionResult> GetClanAvatar(int id, [FromQuery(Name = "default")] bool? fallToDefault, CancellationToken ct = default)
+    public async Task<IActionResult> GetClanAvatar(int id, [FromQuery(Name = "default")] bool? fallToDefault, [FromQuery] string? v, CancellationToken ct = default)
     {
         var data = await assetService.GetClanAvatar(id, fallToDefault ?? true, ct);
         if (data == null) return NotFound();
-        return new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+        
+        // Add cache headers with timestamp support
+        var result = new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+        
+        // Add timestamp to help with cache busting
+        if (!string.IsNullOrEmpty(v))
+        {
+            result.EntityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{v}\"");
+        }
+        
+        return result;
     }
 
     [HttpGet(RequestType.GetClanBanner)]
-    public async Task<IActionResult> GetClanBanner(int id, [FromQuery(Name = "default")] bool? fallToDefault, CancellationToken ct = default)
+    public async Task<IActionResult> GetClanBanner(int id, [FromQuery(Name = "default")] bool? fallToDefault, [FromQuery] string? v, CancellationToken ct = default)
     {
         var data = await assetService.GetClanBanner(id, fallToDefault ?? true, ct);
         if (data == null) return NotFound();
-        return new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+        
+        // Add cache headers with timestamp support
+        var result = new FileContentResult(data, $"image/{ImageTools.GetImageType(data) ?? "png"}");
+        
+        // Add timestamp to help with cache busting
+        if (!string.IsNullOrEmpty(v))
+        {
+            result.EntityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{v}\"");
+        }
+        
+        return result;
     }
 
     [HttpGet]

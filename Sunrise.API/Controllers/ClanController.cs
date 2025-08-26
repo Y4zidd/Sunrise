@@ -61,8 +61,26 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             catch { return false; }
         }
 
+        long GetClanAssetTimestamp(string subFolder)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(Shared.Application.Configuration.DataPath, $"Files/Clan/{subFolder}");
+                if (!System.IO.Directory.Exists(dir)) return 0;
+                var file = System.IO.Directory
+                    .EnumerateFiles(dir, $"{id}.*", System.IO.SearchOption.TopDirectoryOnly)
+                    .FirstOrDefault();
+                if (file == null) return 0;
+                return new System.IO.FileInfo(file).LastWriteTimeUtc.Ticks;
+            }
+            catch { return 0; }
+        }
+
         var hasAvatar = HasClanAsset("Avatars");
         var hasBanner = HasClanAsset("Banners");
+        
+        var avatarTimestamp = GetClanAssetTimestamp("Avatars");
+        var bannerTimestamp = GetClanAssetTimestamp("Banners");
 
         return Ok(new
         {
@@ -88,8 +106,9 @@ public class ClanController(DatabaseService database, ClanService clanService, C
             owner = owner == null ? null : new { id = owner.Id, name = owner.Username },
             ownerLastActive = owner?.LastOnlineTime,
             // Always expose URLs so settings page can request defaults; other pages add &default=false
-            avatarUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/avatar/{id}",
-            bannerUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/banner/{id}",
+            // Add timestamp for cache busting based on file modification time
+            avatarUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/avatar/{id}?v={avatarTimestamp}",
+            bannerUrl = $"https://a.{Shared.Application.Configuration.Domain}/clan/banner/{id}?v={bannerTimestamp}",
             rankTotalPp,
             rankAveragePp,
             rankRankedScore,
