@@ -23,6 +23,8 @@ public static class RequestType
     public const string UsernameChange = "username/change";
     public const string CountryChange = "country/change";
 
+    public const string UserPreviousUsernames = "{id:int}/previous-usernames";
+
     // Bancho controller
     public const string BanchoProcess = "/";
 
