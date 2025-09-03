@@ -145,4 +145,10 @@ grafana
 appsettings.Production.json
 
 # Ignore all files in the Data folder
-cert-renewal.log    
+cert-renewal.log
+
+# Custom management scripts
+score-mode-manager.sh
+score-mode-manager-interactive.sh
+fix-rankings.md
+scripts/    
